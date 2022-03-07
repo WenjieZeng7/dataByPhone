@@ -1,0 +1,2 @@
+rootProject.name = "SensorDemo_TYPE_GYROSCOPE"
+include ':app'
