@@ -5,7 +5,9 @@ import androidx.core.app.ActivityCompat;
 
 import android.Manifest;
 import android.annotation.TargetApi;
+import android.content.ContentValues;
 import android.content.pm.PackageManager;
+import android.database.sqlite.SQLiteDatabase;
 import android.graphics.Color;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -16,17 +18,32 @@ import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
+import android.widget.Button;
+import android.widget.CompoundButton;
 import android.widget.LinearLayout;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.material.snackbar.Snackbar;
 
+import org.eclipse.paho.android.service.MqttAndroidClient;
+import org.eclipse.paho.client.mqttv3.IMqttActionListener;
+import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
+import org.eclipse.paho.client.mqttv3.IMqttToken;
+import org.eclipse.paho.client.mqttv3.MqttCallback;
+import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
+import org.eclipse.paho.client.mqttv3.MqttException;
+import org.eclipse.paho.client.mqttv3.MqttMessage;
+
 import java.math.BigInteger;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -35,13 +52,46 @@ public class MainActivity extends AppCompatActivity {
 
     private SensorManager sensorManager;    //  传感器管理 对象
     private Sensor gyroscopeSensor;   //    陀螺仪传感器 对象；
-    private Sensor accSensor;   //    陀螺仪传感器 对象；
+    private Sensor accSensor;   //    加速度传感器 对象；
     private SensorEventListener gyroscopeEventListener; //  陀螺仪事件监听器 对象；
     private SensorEventListener accEventListener;
-    private TextView txt_show1;
-    private TextView txt_show2;
+    private TextView accelerateX;  //加速度
+    private TextView accelerateY;
+    private TextView accelerateZ;
+    private TextView angleX;  //陀螺仪
+    private TextView angleY;
+    private TextView angleZ;
+
 
     private String permissionInfo;
+
+
+    /**
+     * 位置管理器
+     */
+    private LocationManager locationManager;
+    private LocationListener locationListener;
+    //    private LinearLayout layoutLocation = null;
+    private TextView tvProvider = null;
+    private TextView tvTime = null;
+    private TextView tvLatitude = null;
+    private TextView tvLongitude = null;
+    private TextView tvAltitude = null;
+    private TextView tvBearing = null;
+    private TextView tvSpeed = null;
+    private TextView tvAccuracy = null;
+
+
+    public float accelerateX_value;
+    public float accelerateY_value;
+    public float accelerateZ_value;
+    public float angleX_value;
+    public float angleY_value;
+    public float angleZ_value;
+    private String time;
+    private double latitude;
+    private double longitude;
+    private float speed;
 
 
     /**
@@ -57,27 +107,56 @@ public class MainActivity extends AppCompatActivity {
             Manifest.permission.ACCESS_COARSE_LOCATION
     };
 
-    /**
-     * 位置管理器
-     */
-    private LocationManager locationManager = null;
-    private LinearLayout layoutLocation = null;
-    private TextView tvProvider = null;
-    private TextView tvTime = null;
-    private TextView tvLatitude = null;
-    private TextView tvLongitude = null;
-    private TextView tvAltitude = null;
-    private TextView tvBearing = null;
-    private TextView tvSpeed = null;
-    private TextView tvAccuracy = null;
-    private LocationListener locationListener;
+
+    //MQTT
+    private final String TAG = "AiotMqtt";
+    /* 设备三元组信息 */
+    final private String PRODUCTKEY = "gmll0B3WENe";
+    final private String DEVICENAME = "test";
+    final private String DEVICESECRET = "81690e1ee1a86b12ca73b42378329ddf";
+
+    /* 自动Topic, 用于上报消息 */
+    final private String GYR_TOPIC = "/" + PRODUCTKEY + "/" + DEVICENAME + "/user/update";  //陀螺仪
+    final private String ACC_TOPIC = "/" + PRODUCTKEY + "/" + DEVICENAME + "/user/update";  //加速度
+    final private String LOC_TOPIC = "/" + PRODUCTKEY + "/" + DEVICENAME + "/user/update";  //位置服务
+    /* 自动Topic, 用于接受消息 */
+    final private String SUB_TOPIC = "/" + PRODUCTKEY + "/" + DEVICENAME + "/user/get";
+
+    /* 阿里云Mqtt服务器域名 */
+    final String host = "tcp://" + PRODUCTKEY + ".iot-as-mqtt.cn-shanghai.aliyuncs.com:443";
+    //    final String host = "iot-06z00e2ppeme0ap.mqtt.iothub.aliyuncs.com";
+    private String clientId;
+    private String userName;
+    private String passWord;
+
+    MqttAndroidClient mqttAndroidClient;
+    private boolean mqttOk = false;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        getPersimmions();
+        getPersimmions();  //定位权限
+
+        accelerateX = (TextView) findViewById(R.id.accelerateX);
+        accelerateY = (TextView) findViewById(R.id.accelerateY);
+        accelerateZ = (TextView) findViewById(R.id.accelerateZ);
+
+        angleX = (TextView) findViewById(R.id.angleX);
+        angleY = (TextView) findViewById(R.id.angleY);
+        angleZ = (TextView) findViewById(R.id.angleZ);
+
+        tvProvider = (TextView) findViewById(R.id.tv_provider);
+        tvTime = (TextView) findViewById(R.id.tv_time);
+        tvLatitude = (TextView) findViewById(R.id.tv_latitude);
+        tvLongitude = (TextView) findViewById(R.id.tv_longitude);
+        tvAltitude = (TextView) findViewById(R.id.tv_altitude);
+        tvBearing = (TextView) findViewById(R.id.tv_bearing);
+        tvSpeed = (TextView) findViewById(R.id.tv_speed);
+        tvAccuracy = (TextView) findViewById(R.id.tv_accuracy);
+
 
         // 获取一个传感器管理器 对象
         sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
@@ -90,20 +169,68 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "The device has no Gyroscope !", Toast.LENGTH_LONG).show();
             finish();
         }
-        txt_show1 = findViewById(R.id.txt_show1);
-        txt_show2 = findViewById(R.id.txt_show2);
-
         //位置相关
         locationManager = (LocationManager) getSystemService(LOCATION_SERVICE); //获取位置管理对象
 
-        tvProvider = (TextView) findViewById(R.id.tv_provider);
-        tvTime = (TextView) findViewById(R.id.tv_time);
-        tvLatitude = (TextView) findViewById(R.id.tv_latitude);
-        tvLongitude = (TextView) findViewById(R.id.tv_longitude);
-        tvAltitude = (TextView) findViewById(R.id.tv_altitude);
-        tvBearing = (TextView) findViewById(R.id.tv_bearing);
-        tvSpeed = (TextView) findViewById(R.id.tv_speed);
-        tvAccuracy = (TextView) findViewById(R.id.tv_accuracy);
+
+        //MQTT
+        /* 获取Mqtt建连信息clientId, username, password */
+        AiotMqttOption aiotMqttOption = new AiotMqttOption().getMqttOption(PRODUCTKEY, DEVICENAME, DEVICESECRET);
+        if (aiotMqttOption == null) {
+            Log.e(TAG, "device info error");
+        } else {
+            clientId = aiotMqttOption.getClientId();
+            userName = aiotMqttOption.getUsername();
+            passWord = aiotMqttOption.getPassword();
+        }
+//
+        /* 创建MqttConnectOptions对象并配置username和password */
+        MqttConnectOptions mqttConnectOptions = new MqttConnectOptions();
+        mqttConnectOptions.setUserName(userName);
+        mqttConnectOptions.setPassword(passWord.toCharArray());
+
+
+        /* 创建MqttAndroidClient对象, 并设置回调接口 */
+        mqttAndroidClient = new MqttAndroidClient(getApplicationContext(), host, clientId);
+        mqttAndroidClient.setCallback(new MqttCallback() {
+            @Override
+            public void connectionLost(Throwable cause) {
+                Log.i(TAG, "connection lost");
+            }
+
+            @Override
+            public void messageArrived(String topic, MqttMessage message) throws Exception {
+                Log.i(TAG, "topic: " + topic + ", msg: " + new String(message.getPayload()));
+            }
+
+            @Override
+            public void deliveryComplete(IMqttDeliveryToken token) {
+                Log.i(TAG, "msg delivered");
+            }
+        });
+//
+
+
+        /* Mqtt建连 */
+        try {
+            mqttAndroidClient.connect(mqttConnectOptions, null, new IMqttActionListener() {
+                @Override
+                public void onSuccess(IMqttToken asyncActionToken) {
+                    Log.i(TAG, "connect succeed");
+                    subscribeTopic(SUB_TOPIC);
+                    mqttOk = true;
+                }
+
+                @Override
+                public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
+                    Log.i(TAG, "connect failed");
+                }
+            });
+        } catch (MqttException e) {
+            e.printStackTrace();
+        }
+        //MQTT
+
 
         // 获取得到了sensor，则初始化 传感器的 监听器；
         gyroscopeEventListener = new SensorEventListener() {
@@ -122,12 +249,19 @@ public class MainActivity extends AppCompatActivity {
 //                    default:
 //                        break;
 //                }
-                txt_show1.setText("陀螺仪x:"+event.values[0]+"\n"+"陀螺仪y:"+event.values[1]+"\n"+"陀螺仪z:"+event.values[2]+"\n");
+                angleX_value = event.values[0];
+                angleY_value = event.values[1];
+                angleZ_value = event.values[2];
+                angleX.setText("陀螺仪x:" + angleX_value);
+                angleY.setText("陀螺仪y:" + angleY_value);
+                angleZ.setText("陀螺仪z:" + angleZ_value + "\n");
+//                if(mqttOk){
+//                    publishMessageGYR("time:"+ date + "陀螺仪x:" + v0 + "\n" + "陀螺仪y:" + v1 + "\n" + "陀螺仪z:" + v2 + "\n");
+//                }
             }
 
             @Override
             public void onAccuracyChanged(Sensor sensor, int accuracy) {
-
             }
         };
 
@@ -148,8 +282,17 @@ public class MainActivity extends AppCompatActivity {
 //                    default:
 //                        break;
 //                }
-                txt_show2.setText("加速度x:"+event.values[0]+"\n"+"加速度y:"+event.values[1]+"\n"+"加速度z:"+event.values[2]+"\n");
+                accelerateX_value = event.values[0];
+                accelerateY_value = event.values[1];
+                accelerateZ_value = event.values[2];
+                accelerateX.setText("加速度x:" + accelerateX_value);
+                accelerateY.setText("加速度y:" + accelerateX_value);
+                accelerateZ.setText("加速度z:" + accelerateX_value + "\n");
+//                if(mqttOk){
+//                    publishMessageACC("time:"+ date + "加速度x:"+ v0 +"\n"+"加速度y:"+ v1 +"\n"+"加速度z:"+ v2 +"\n");
+//                }
             }
+
             @Override
             public void onAccuracyChanged(Sensor sensor, int accuracy) {
             }
@@ -159,26 +302,34 @@ public class MainActivity extends AppCompatActivity {
         locationListener = new LocationListener() {
             @Override
             public void onLocationChanged(Location location) {
-                            tvProvider.setText("方式："+location.getProvider());
-                            tvTime.setText("时间："+new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date(location.getTime())));
-                            tvLatitude.setText("纬度："+location.getLatitude() + " °");
-                            tvLongitude.setText("经度："+location.getLongitude() + " °");
-                            tvAltitude.setText("海拔："+location.getAltitude() + " m");
-                            tvBearing.setText("方向："+location.getBearing() + " °");
-                            tvSpeed.setText("速度："+location.getSpeed() + " m/s");
-                            tvAccuracy.setText("精度："+location.getAccuracy() + " m");
+                tvProvider.setText("方式：" + location.getProvider());
+                time = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date(location.getTime()));
+                latitude = location.getLatitude();  //纬度
+                longitude = location.getLongitude();    //经度
+                speed = location.getSpeed();
+                tvTime.setText("时间：" + time);
+                tvLatitude.setText("纬度：" + latitude + " °");
+                tvLongitude.setText("经度：" + longitude + " °");
+                tvAltitude.setText("海拔：" + location.getAltitude() + " m");
+                tvBearing.setText("方向：" + location.getBearing() + " °");
+                tvSpeed.setText("速度：" + speed + " m/s");
+                tvAccuracy.setText("精度：" + location.getAccuracy() + " m\n");
+//                if(mqttOk){
+//                    publishMessageLOC("time:"+ date +"\n"+ "latitude:"+ latitude +"\n"+"longitude:"+ longitude +"\n"+"speed:"+ speed +"\n");
+//                }
+            }
+        };
 
-                }
-            };
 
+        addData();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
         // 为传感器 配置 监听器 和 相关属性
-        sensorManager.registerListener(gyroscopeEventListener, gyroscopeSensor, SensorManager.SENSOR_DELAY_FASTEST);
-        sensorManager.registerListener(accEventListener, accSensor, SensorManager.SENSOR_DELAY_FASTEST);
+        sensorManager.registerListener(gyroscopeEventListener, gyroscopeSensor, SensorManager.SENSOR_DELAY_GAME);
+        sensorManager.registerListener(accEventListener, accSensor, SensorManager.SENSOR_DELAY_GAME); //GAME的类型，其频率是适中的
 
         locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, locationListener);
 //        // 注册位置服务，获取系统位置
@@ -187,6 +338,7 @@ public class MainActivity extends AppCompatActivity {
 //        } else {
 //            requestLocationPermissions();
 //        }
+
     }
 
     @Override
@@ -197,6 +349,95 @@ public class MainActivity extends AppCompatActivity {
         sensorManager.unregisterListener(accEventListener);
         locationManager.removeUpdates(locationListener);
     }
+
+
+    private boolean isRecord;
+    /**
+     * 写入SQLite
+     */
+    private void addData() {
+        MyDatabaseHelper dbHelper = new MyDatabaseHelper(this, "SQLite1.db", null, 1);
+        dbHelper.getWritableDatabase();
+        Button start = (Button) findViewById(R.id.addData_start);
+        Button end = (Button) findViewById(R.id.addData_end);
+        Switch isLocalSave = (Switch) findViewById(R.id.isLocalSave);
+//        isLocalSave.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+//            @Override
+//            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+//                if (isChecked) {
+//                    Toast.makeText(MainActivity.this, "开始保存", Toast.LENGTH_SHORT).show();
+//                    {
+//                        Timer timer = new Timer();
+//                        timer.schedule(new TimerTask() {
+//                            @Override
+//                            public void run() {
+//                                SQLiteDatabase db = dbHelper.getWritableDatabase();
+//                                ContentValues values = new ContentValues();
+//                                values.put("time", time);
+//                                values.put("accelerateX", accelerateX_value);
+//                                values.put("accelerateY", accelerateY_value);
+//                                values.put("accelerateZ", accelerateZ_value);
+//                                values.put("angleX", angleX_value);
+//                                values.put("angleY", angleY_value);
+//                                values.put("angleZ", angleZ_value);
+//                                values.put("latitude", latitude);
+//                                values.put("longitude", longitude);
+//                                values.put("speed", speed);
+//                                db.insert("Sensor1", null, values);
+//                            }
+//                        }, 0, 200);
+//                    }
+//                }else{
+//                    Toast.makeText(MainActivity.this, "结束保存", Toast.LENGTH_SHORT).show();
+//                }
+//            }
+//        });
+
+        start.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Toast.makeText(MainActivity.this, "开始保存", Toast.LENGTH_SHORT).show();
+                isRecord = true;
+                if (isRecord = true) {
+                    Timer timer = new Timer();
+                    timer.schedule(new TimerTask() {
+                        @Override
+                        public void run() {
+                            SQLiteDatabase db = dbHelper.getWritableDatabase();
+                            ContentValues values = new ContentValues();
+                            values.put("time", time);
+                            values.put("accelerateX", accelerateX_value);
+                            values.put("accelerateY", accelerateY_value);
+                            values.put("accelerateZ", accelerateZ_value);
+                            values.put("angleX", angleX_value);
+                            values.put("angleY", angleY_value);
+                            values.put("angleZ", angleZ_value);
+                            values.put("latitude", latitude);
+                            values.put("longitude", longitude);
+                            values.put("speed", speed);
+                            db.insert("Sensor1", null, values);
+                        }
+                    }, 0, 200);
+                }
+            }
+        });
+        end.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                isRecord = false;
+                Toast.makeText(MainActivity.this, "结束保存", Toast.LENGTH_SHORT).show();
+            }
+        });
+//        clear.setOnClickListener(new View.OnClickListener() {
+//            @Override
+//            public void onClick(View v) {
+//                SQLiteDatabase db = dbHelper.getWritableDatabase();
+//                db.delete("Sensor1", "id > ?", new String[]{"0"});
+//                Toast.makeText(MainActivity.this, "清除完成", Toast.LENGTH_SHORT).show();
+//            }
+//        });
+    }
+
 
 //    /**
 //     * 检查权限
@@ -279,21 +520,31 @@ public class MainActivity extends AppCompatActivity {
 
 
     /**
-     //     * MQTT建连选项类，输入设备三元组productKey, deviceName和deviceSecret, 生成Mqtt建连参数clientId，username和password.
-     //     */
+     * //     * MQTT建连选项类，输入设备三元组productKey, deviceName和deviceSecret, 生成Mqtt建连参数clientId，username和password.
+     * //
+     */
     class AiotMqttOption {
         private String username = "";
         private String password = "";
         private String clientId = "";
 
-        public String getUsername() { return this.username;}
-        public String getPassword() { return this.password;}
-        public String getClientId() { return this.clientId;}
+        public String getUsername() {
+            return this.username;
+        }
+
+        public String getPassword() {
+            return this.password;
+        }
+
+        public String getClientId() {
+            return this.clientId;
+        }
 
         /**
          * 获取Mqtt建连选项对象
-         * @param productKey 产品秘钥
-         * @param deviceName 设备名称
+         *
+         * @param productKey   产品秘钥
+         * @param deviceName   设备名称
          * @param deviceSecret 设备机密
          * @return AiotMqttOption对象或者NULL
          */
@@ -326,6 +577,128 @@ public class MainActivity extends AppCompatActivity {
                 return null;
             }
             return this;
+        }
+    }
+
+    /**
+     * 加速度
+     * 向默认的主题/user/update发布消息
+     *
+     * @param payload 消息载荷
+     */
+    public void publishMessageACC(String payload) {
+        try {
+            if (mqttAndroidClient.isConnected() == false) {
+                mqttAndroidClient.connect();
+            }
+
+            MqttMessage message = new MqttMessage();
+            message.setPayload(payload.getBytes());
+            message.setQos(0);
+            mqttAndroidClient.publish(ACC_TOPIC, message, null, new IMqttActionListener() {
+                @Override
+                public void onSuccess(IMqttToken asyncActionToken) {
+                    Log.i(TAG, "publish succeed!");
+                }
+
+                @Override
+                public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
+                    Log.i(TAG, "publish failed!");
+                }
+            });
+        } catch (MqttException e) {
+            Log.e(TAG, e.toString());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * 陀螺仪
+     * 向默认的主题/user/update发布消息
+     *
+     * @param payload 消息载荷
+     */
+    public void publishMessageGYR(String payload) {
+        try {
+            if (mqttAndroidClient.isConnected() == false) {
+                mqttAndroidClient.connect();
+            }
+
+            MqttMessage message = new MqttMessage();
+            message.setPayload(payload.getBytes());
+            message.setQos(0);
+            mqttAndroidClient.publish(GYR_TOPIC, message, null, new IMqttActionListener() {
+                @Override
+                public void onSuccess(IMqttToken asyncActionToken) {
+                    Log.i(TAG, "publish succeed!");
+                }
+
+                @Override
+                public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
+                    Log.i(TAG, "publish failed!");
+                }
+            });
+        } catch (MqttException e) {
+            Log.e(TAG, e.toString());
+            e.printStackTrace();
+        }
+    }
+
+
+    /**
+     * 位置信息
+     * 向默认的主题/user/update发布消息
+     *
+     * @param payload 消息载荷
+     */
+    public void publishMessageLOC(String payload) {
+        try {
+            if (mqttAndroidClient.isConnected() == false) {
+                mqttAndroidClient.connect();
+            }
+
+            MqttMessage message = new MqttMessage();
+            message.setPayload(payload.getBytes());
+            message.setQos(0);
+            mqttAndroidClient.publish(LOC_TOPIC, message, null, new IMqttActionListener() {
+                @Override
+                public void onSuccess(IMqttToken asyncActionToken) {
+                    Log.i(TAG, "publish succeed!");
+                }
+
+                @Override
+                public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
+                    Log.i(TAG, "publish failed!");
+                }
+            });
+        } catch (MqttException e) {
+            Log.e(TAG, e.toString());
+            e.printStackTrace();
+        }
+    }
+
+
+    /**
+     * 订阅特定的主题
+     *
+     * @param topic mqtt主题
+     */
+    public void subscribeTopic(String topic) {
+        try {
+            mqttAndroidClient.subscribe(topic, 0, null, new IMqttActionListener() {
+                @Override
+                public void onSuccess(IMqttToken asyncActionToken) {
+                    Log.i(TAG, "subscribed succeed");
+                }
+
+                @Override
+                public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
+                    Log.i(TAG, "subscribed failed");
+                }
+            });
+
+        } catch (MqttException e) {
+            e.printStackTrace();
         }
     }
 

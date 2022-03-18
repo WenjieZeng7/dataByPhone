@@ -39,13 +39,37 @@
         android:orientation="vertical">
 
         <TextView
-            android:id="@+id/txt_show1"
+            android:id="@+id/accelerateX"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             />
 
         <TextView
-            android:id="@+id/txt_show2"
+            android:id="@+id/accelerateY"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            />
+
+        <TextView
+            android:id="@+id/accelerateZ"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            />
+
+        <TextView
+            android:id="@+id/angleX"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            />
+
+        <TextView
+            android:id="@+id/angleY"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            />
+
+        <TextView
+            android:id="@+id/angleZ"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             />
@@ -98,7 +122,46 @@
             android:layout_height="wrap_content"
             />
 
+        <Switch
+            android:id="@+id/isLocalSave"
+            android:text="数据本地保存"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            />
+
+        <Switch
+            android:id="@+id/isRemoteSave"
+            android:text="数据远程保存"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            />
+
+        <Button
+            android:id="@+id/addData_start"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="START"/>
+
+        <Button
+            android:id="@+id/addData_end"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="END"/>
+
     </LinearLayout>
 
+
+
+<!--    <Button-->
+<!--        android:id="@+id/publish"-->
+<!--        android:layout_width="wrap_content"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:text="Publish"-->
+<!--        app:layout_constraintBottom_toBottomOf="parent"-->
+<!--        app:layout_constraintEnd_toEndOf="parent"-->
+<!--        app:layout_constraintStart_toStartOf="parent"-->
+<!--        app:layout_constraintTop_toBottomOf="@+id/textView" />-->
 
 </androidx.constraintlayout.widget.ConstraintLayout>
