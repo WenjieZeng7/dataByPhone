@@ -14,6 +14,14 @@
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE"/>
 
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />  //定位后台访问权限
+<!--    &lt;!&ndash;允许程序打开网络套接字&ndash;&gt;-->
+<!--    <uses-permission android:name="android.permission.INTERNET" />-->
+<!--    &lt;!&ndash;允许程序读写手机状态和身份&ndash;&gt;-->
+<!--    <uses-permission android:name="android.permission.READ_PHONE_STATE" />-->
+<!--    &lt;!&ndash;这个权限用于允许程序在手机屏幕关闭后后台进程仍然运行&ndash;&gt;-->
+<!--    <uses-permission android:name="android.permission.WAKE_LOCK" />-->
+<!--    &lt;!&ndash;用于创建前台服务&ndash;&gt;-->
+<!--    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />-->
 
 
     <!-- Mqtt权限 -->
@@ -42,6 +50,7 @@
         <!-- Mqtt Service -->
         <service android:name="org.eclipse.paho.android.service.MqttService">
         </service>
+        <service android:name=".MainActivity" android:foregroundServiceType="location" />
 
     </application>
 

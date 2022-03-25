@@ -48,6 +48,7 @@ import java.util.TimerTask;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
+
 public class MainActivity extends AppCompatActivity {
 
     private SensorManager sensorManager;    //  传感器管理 对象
@@ -173,6 +174,7 @@ public class MainActivity extends AppCompatActivity {
         locationManager = (LocationManager) getSystemService(LOCATION_SERVICE); //获取位置管理对象
 
 
+
         //MQTT
         /* 获取Mqtt建连信息clientId, username, password */
         AiotMqttOption aiotMqttOption = new AiotMqttOption().getMqttOption(PRODUCTKEY, DEVICENAME, DEVICESECRET);
@@ -282,6 +284,7 @@ public class MainActivity extends AppCompatActivity {
 //                    default:
 //                        break;
 //                }
+                getTime();
                 accelerateX_value = event.values[0];
                 accelerateY_value = event.values[1];
                 accelerateZ_value = event.values[2];
@@ -303,7 +306,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onLocationChanged(Location location) {
                 tvProvider.setText("方式：" + location.getProvider());
-                time = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date(location.getTime()));
+//                time = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date(location.getTime()));
                 latitude = location.getLatitude();  //纬度
                 longitude = location.getLongitude();    //经度
                 speed = location.getSpeed();
@@ -320,6 +323,9 @@ public class MainActivity extends AppCompatActivity {
             }
         };
 
+        sensorManager.registerListener(gyroscopeEventListener, gyroscopeSensor, SensorManager.SENSOR_DELAY_GAME);
+        sensorManager.registerListener(accEventListener, accSensor, SensorManager.SENSOR_DELAY_GAME); //GAME的类型，其频率是适中的
+        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, locationListener);
 
         addData();
     }
@@ -330,7 +336,6 @@ public class MainActivity extends AppCompatActivity {
         // 为传感器 配置 监听器 和 相关属性
         sensorManager.registerListener(gyroscopeEventListener, gyroscopeSensor, SensorManager.SENSOR_DELAY_GAME);
         sensorManager.registerListener(accEventListener, accSensor, SensorManager.SENSOR_DELAY_GAME); //GAME的类型，其频率是适中的
-
         locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, locationListener);
 //        // 注册位置服务，获取系统位置
 //        if (checkPermission()) {
@@ -344,10 +349,11 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
+        // 与onStop()和onDestroy()分别表示结束任务时的工作。
         // 为传感器 注销监听器；
-        sensorManager.unregisterListener(gyroscopeEventListener);
-        sensorManager.unregisterListener(accEventListener);
-        locationManager.removeUpdates(locationListener);
+//        sensorManager.unregisterListener(gyroscopeEventListener);
+//        sensorManager.unregisterListener(accEventListener);
+//        locationManager.removeUpdates(locationListener);
     }
 
 
@@ -358,76 +364,78 @@ public class MainActivity extends AppCompatActivity {
     private void addData() {
         MyDatabaseHelper dbHelper = new MyDatabaseHelper(this, "SQLite1.db", null, 1);
         dbHelper.getWritableDatabase();
-        Button start = (Button) findViewById(R.id.addData_start);
-        Button end = (Button) findViewById(R.id.addData_end);
+//        Button start = (Button) findViewById(R.id.addData_start);
+//        Button end = (Button) findViewById(R.id.addData_end);
         Switch isLocalSave = (Switch) findViewById(R.id.isLocalSave);
-//        isLocalSave.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-//            @Override
-//            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-//                if (isChecked) {
-//                    Toast.makeText(MainActivity.this, "开始保存", Toast.LENGTH_SHORT).show();
-//                    {
-//                        Timer timer = new Timer();
-//                        timer.schedule(new TimerTask() {
-//                            @Override
-//                            public void run() {
-//                                SQLiteDatabase db = dbHelper.getWritableDatabase();
-//                                ContentValues values = new ContentValues();
-//                                values.put("time", time);
-//                                values.put("accelerateX", accelerateX_value);
-//                                values.put("accelerateY", accelerateY_value);
-//                                values.put("accelerateZ", accelerateZ_value);
-//                                values.put("angleX", angleX_value);
-//                                values.put("angleY", angleY_value);
-//                                values.put("angleZ", angleZ_value);
-//                                values.put("latitude", latitude);
-//                                values.put("longitude", longitude);
-//                                values.put("speed", speed);
-//                                db.insert("Sensor1", null, values);
-//                            }
-//                        }, 0, 200);
-//                    }
-//                }else{
-//                    Toast.makeText(MainActivity.this, "结束保存", Toast.LENGTH_SHORT).show();
-//                }
-//            }
-//        });
-
-        start.setOnClickListener(new View.OnClickListener() {
+        isLocalSave.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
-            public void onClick(View v) {
-                Toast.makeText(MainActivity.this, "开始保存", Toast.LENGTH_SHORT).show();
-                isRecord = true;
-                if (isRecord = true) {
-                    Timer timer = new Timer();
-                    timer.schedule(new TimerTask() {
-                        @Override
-                        public void run() {
-                            SQLiteDatabase db = dbHelper.getWritableDatabase();
-                            ContentValues values = new ContentValues();
-                            values.put("time", time);
-                            values.put("accelerateX", accelerateX_value);
-                            values.put("accelerateY", accelerateY_value);
-                            values.put("accelerateZ", accelerateZ_value);
-                            values.put("angleX", angleX_value);
-                            values.put("angleY", angleY_value);
-                            values.put("angleZ", angleZ_value);
-                            values.put("latitude", latitude);
-                            values.put("longitude", longitude);
-                            values.put("speed", speed);
-                            db.insert("Sensor1", null, values);
-                        }
-                    }, 0, 200);
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                if (isChecked) {
+                    Toast.makeText(MainActivity.this, "开始保存", Toast.LENGTH_SHORT).show();
+                    {
+                        Timer timer = new Timer();
+                        timer.schedule(new TimerTask() {
+                            @Override
+                            public void run() {
+                                SQLiteDatabase db = dbHelper.getWritableDatabase();
+                                ContentValues values = new ContentValues();
+                                values.put("time", time);
+                                values.put("accelerateX", accelerateX_value);
+                                values.put("accelerateY", accelerateY_value);
+                                values.put("accelerateZ", accelerateZ_value);
+                                values.put("angleX", angleX_value);
+                                values.put("angleY", angleY_value);
+                                values.put("angleZ", angleZ_value);
+                                values.put("latitude", latitude);
+                                values.put("longitude", longitude);
+                                values.put("speed", speed);
+                                db.insert("Sensor1", null, values);
+                            }
+                        }, 0, 200);
+                    }
+                }else{
+                    Toast.makeText(MainActivity.this, "结束保存", Toast.LENGTH_SHORT).show();
                 }
             }
         });
-        end.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                isRecord = false;
-                Toast.makeText(MainActivity.this, "结束保存", Toast.LENGTH_SHORT).show();
-            }
-        });
+
+//        start.setOnClickListener(new View.OnClickListener() {
+//            @Override
+//            public void onClick(View v) {
+//                Toast.makeText(MainActivity.this, "开始保存", Toast.LENGTH_SHORT).show();
+//                isRecord = true;
+//                if (isRecord = true) {
+//                    Timer timer = new Timer();
+//                    timer.schedule(new TimerTask() {
+//                        @Override
+//                        public void run() {
+//                            SQLiteDatabase db = dbHelper.getWritableDatabase();
+//                            ContentValues values = new ContentValues();
+//                            values.put("time", time);
+//                            values.put("accelerateX", accelerateX_value);
+//                            values.put("accelerateY", accelerateY_value);
+//                            values.put("accelerateZ", accelerateZ_value);
+//                            values.put("angleX", angleX_value);
+//                            values.put("angleY", angleY_value);
+//                            values.put("angleZ", angleZ_value);
+//                            values.put("latitude", latitude);
+//                            values.put("longitude", longitude);
+//                            values.put("speed", speed);
+//                            db.insert("Sensor1", null, values);
+//                        }
+//                    }, 0, 200);
+//                }
+//            }
+//        });
+//        end.setOnClickListener(new View.OnClickListener() {
+//            @Override
+//            public void onClick(View v) {
+//                isRecord = false;
+//                Toast.makeText(MainActivity.this, "结束保存", Toast.LENGTH_SHORT).show();
+//            }
+//        });
+
+
 //        clear.setOnClickListener(new View.OnClickListener() {
 //            @Override
 //            public void onClick(View v) {
@@ -517,6 +525,36 @@ public class MainActivity extends AppCompatActivity {
             return true;
         }
     }
+
+
+    private void getTime() {
+        SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS"); //yyyy年MM月dd日   HH:mm:ss.SSS
+        Date mDate = new Date(System.currentTimeMillis());
+        String myTime = formatter.format(mDate);
+        time = formatter.format(mDate);
+    }
+
+    /**
+     * Android 10及以上申请权限
+     */
+    private String[] permissionsQ = new String[] {
+            // 定位权限
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            // 编译版本小于29，不能使用Manifest.permission.ACCESS_BACKGROUND_LOCATION
+            // 2020-08-28补充：Android10上若要后台使用定位，需要配置权限为【始终允许】
+            "android.permission.ACCESS_BACKGROUND_LOCATION",
+    };
+
+    /**
+     * Android10以下申请权限
+     */
+    private String[] permissionsO = new String[] {
+            // 定位权限
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+    };
+
 
 
     /**
