@@ -1,11 +1,21 @@
 package com.example.sensordemo_type_gyroscope;
 
+import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
+import androidx.core.app.NotificationCompat;
 
 import android.Manifest;
 import android.annotation.TargetApi;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.Service;
+import android.content.ComponentName;
 import android.content.ContentValues;
+import android.content.Context;
+import android.content.Intent;
+import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.database.sqlite.SQLiteDatabase;
 import android.graphics.Color;
@@ -18,6 +28,7 @@ import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.IBinder;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -134,12 +145,43 @@ public class MainActivity extends AppCompatActivity {
     private boolean mqttOk = false;
 
 
+
+    @RequiresApi(api = Build.VERSION_CODES.O)
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
         getPersimmions();  //定位权限
+
+
+        //开启服务
+//        Intent intent = new Intent(this,MyService.class);
+//        this.startForegroundService(intent);
+
+        //绑定服务
+//        Intent bindIntent = new Intent(this,MyService.class);
+//        ServiceConnection serviceConnection = new ServiceConnection() {
+//            @Override
+//            public void onServiceConnected(ComponentName name, IBinder service) {
+//                //绑定成功后todo
+//                MyService myService = ((MyService.MyBinder)service).getService();
+//                Log.d("hello","bindService start");
+//                new MyService.LocationCallback() {
+//                    @Override
+//                    public void onLocation(Location location) {
+//                        Log.d("hello", String.valueOf(location.getLatitude()));
+//                    }
+//                };
+//            }
+//
+//            @Override
+//            public void onServiceDisconnected(ComponentName name) {
+//                //取消绑定后todo
+//            }
+//        };
+//        bindService(bindIntent,serviceConnection, Service.BIND_AUTO_CREATE);
+
 
         accelerateX = (TextView) findViewById(R.id.accelerateX);
         accelerateY = (TextView) findViewById(R.id.accelerateY);
@@ -284,7 +326,7 @@ public class MainActivity extends AppCompatActivity {
 //                    default:
 //                        break;
 //                }
-                getTime();
+//                getTime();
                 accelerateX_value = event.values[0];
                 accelerateY_value = event.values[1];
                 accelerateZ_value = event.values[2];
@@ -301,7 +343,7 @@ public class MainActivity extends AppCompatActivity {
             }
         };
 
-        //地理位置监听器
+//        地理位置监听器
         locationListener = new LocationListener() {
             @Override
             public void onLocationChanged(Location location) {
@@ -377,6 +419,7 @@ public class MainActivity extends AppCompatActivity {
                         timer.schedule(new TimerTask() {
                             @Override
                             public void run() {
+                                getTime();
                                 SQLiteDatabase db = dbHelper.getWritableDatabase();
                                 ContentValues values = new ContentValues();
                                 values.put("time", time);
@@ -498,6 +541,9 @@ public class MainActivity extends AppCompatActivity {
             if (checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
                 permissions.add(Manifest.permission.ACCESS_COARSE_LOCATION);
             }
+            if (checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                permissions.add(Manifest.permission.ACCESS_BACKGROUND_LOCATION);
+            }
             /*
              * 读写权限和电话状态权限非必要权限(建议授予)只会申请一次，用户同意或者禁止，只会弹一次
              */
@@ -530,30 +576,9 @@ public class MainActivity extends AppCompatActivity {
     private void getTime() {
         SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS"); //yyyy年MM月dd日   HH:mm:ss.SSS
         Date mDate = new Date(System.currentTimeMillis());
-        String myTime = formatter.format(mDate);
         time = formatter.format(mDate);
     }
 
-    /**
-     * Android 10及以上申请权限
-     */
-    private String[] permissionsQ = new String[] {
-            // 定位权限
-            Manifest.permission.ACCESS_COARSE_LOCATION,
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            // 编译版本小于29，不能使用Manifest.permission.ACCESS_BACKGROUND_LOCATION
-            // 2020-08-28补充：Android10上若要后台使用定位，需要配置权限为【始终允许】
-            "android.permission.ACCESS_BACKGROUND_LOCATION",
-    };
-
-    /**
-     * Android10以下申请权限
-     */
-    private String[] permissionsO = new String[] {
-            // 定位权限
-            Manifest.permission.ACCESS_COARSE_LOCATION,
-            Manifest.permission.ACCESS_FINE_LOCATION,
-    };
 
 
 
