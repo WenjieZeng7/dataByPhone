@@ -13,6 +13,7 @@ android {
         versionName "1.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        multiDexEnabled true
     }
 
     buildTypes {
@@ -40,4 +41,6 @@ dependencies {
 //    implementation 'com.android.support:support-v4:30.4.1'
     implementation 'androidx.legacy:legacy-support-v4:1.0.0'
 //    implementation 'pub.devrel:easypermissions:3.0.0'
+    implementation 'io.netty:netty-all:4.1.32.Final'
+    implementation 'com.android.support:multidex:1.0.3'
 }

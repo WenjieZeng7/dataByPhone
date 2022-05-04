@@ -9,7 +9,7 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" /> <!-- 这个权限用于获取wifi的获取权限，wifi信息会用来进行网络定位 -->
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" /> <!-- &lt;!&ndash;允许程序打开网络套接字&ndash;&gt; -->
-    <!-- <uses-permission android:name="android.permission.INTERNET" /> -->
+<!--     <uses-permission android:name="android.permission.INTERNET" /> -->
     <!-- &lt;!&ndash;允许程序读写手机状态和身份&ndash;&gt; -->
     <!-- <uses-permission android:name="android.permission.READ_PHONE_STATE" /> -->
     <!-- &lt;!&ndash;这个权限用于允许程序在手机屏幕关闭后后台进程仍然运行&ndash;&gt; -->
@@ -20,6 +20,7 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
 
     <application
         android:allowBackup="true"

@@ -33,6 +33,7 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.CompoundButton;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.Switch;
 import android.widget.TextView;
@@ -49,7 +50,10 @@ import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 
+import java.io.IOException;
+import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.text.NumberFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -60,7 +64,13 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity{
+    private static final String TAG = "MainActivity";
+
+    //netty
+    private NettyClient nettyClient;
+    private EditText host;
+    private EditText port;
 
     private SensorManager sensorManager;    //  传感器管理 对象
     private Sensor gyroscopeSensor;   //    陀螺仪传感器 对象；
@@ -120,29 +130,29 @@ public class MainActivity extends AppCompatActivity {
     };
 
 
-    //MQTT
-    private final String TAG = "AiotMqtt";
-    /* 设备三元组信息 */
-    final private String PRODUCTKEY = "gmll0B3WENe";
-    final private String DEVICENAME = "test";
-    final private String DEVICESECRET = "81690e1ee1a86b12ca73b42378329ddf";
-
-    /* 自动Topic, 用于上报消息 */
-    final private String GYR_TOPIC = "/" + PRODUCTKEY + "/" + DEVICENAME + "/user/update";  //陀螺仪
-    final private String ACC_TOPIC = "/" + PRODUCTKEY + "/" + DEVICENAME + "/user/update";  //加速度
-    final private String LOC_TOPIC = "/" + PRODUCTKEY + "/" + DEVICENAME + "/user/update";  //位置服务
-    /* 自动Topic, 用于接受消息 */
-    final private String SUB_TOPIC = "/" + PRODUCTKEY + "/" + DEVICENAME + "/user/get";
-
-    /* 阿里云Mqtt服务器域名 */
-    final String host = "tcp://" + PRODUCTKEY + ".iot-as-mqtt.cn-shanghai.aliyuncs.com:443";
-    //    final String host = "iot-06z00e2ppeme0ap.mqtt.iothub.aliyuncs.com";
-    private String clientId;
-    private String userName;
-    private String passWord;
-
-    MqttAndroidClient mqttAndroidClient;
-    private boolean mqttOk = false;
+//    //MQTT
+//    private final String TAG = "AiotMqtt";
+//    /* 设备三元组信息 */
+//    final private String PRODUCTKEY = "gmll0B3WENe";
+//    final private String DEVICENAME = "test";
+//    final private String DEVICESECRET = "81690e1ee1a86b12ca73b42378329ddf";
+//
+//    /* 自动Topic, 用于上报消息 */
+//    final private String GYR_TOPIC = "/" + PRODUCTKEY + "/" + DEVICENAME + "/user/update";  //陀螺仪
+//    final private String ACC_TOPIC = "/" + PRODUCTKEY + "/" + DEVICENAME + "/user/update";  //加速度
+//    final private String LOC_TOPIC = "/" + PRODUCTKEY + "/" + DEVICENAME + "/user/update";  //位置服务
+//    /* 自动Topic, 用于接受消息 */
+//    final private String SUB_TOPIC = "/" + PRODUCTKEY + "/" + DEVICENAME + "/user/get";
+//
+//    /* 阿里云Mqtt服务器域名 */
+//    final String host = "tcp://" + PRODUCTKEY + ".iot-as-mqtt.cn-shanghai.aliyuncs.com:443";
+//    //    final String host = "iot-06z00e2ppeme0ap.mqtt.iothub.aliyuncs.com";
+//    private String clientId;
+//    private String userName;
+//    private String passWord;
+//
+//    MqttAndroidClient mqttAndroidClient;
+//    private boolean mqttOk = false;
 
 
 
@@ -200,6 +210,8 @@ public class MainActivity extends AppCompatActivity {
         tvSpeed = (TextView) findViewById(R.id.tv_speed);
         tvAccuracy = (TextView) findViewById(R.id.tv_accuracy);
 
+        host = (EditText) findViewById(R.id.host);
+        port = (EditText) findViewById(R.id.port);
 
         // 获取一个传感器管理器 对象
         sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
@@ -219,60 +231,59 @@ public class MainActivity extends AppCompatActivity {
 
         //MQTT
         /* 获取Mqtt建连信息clientId, username, password */
-        AiotMqttOption aiotMqttOption = new AiotMqttOption().getMqttOption(PRODUCTKEY, DEVICENAME, DEVICESECRET);
-        if (aiotMqttOption == null) {
-            Log.e(TAG, "device info error");
-        } else {
-            clientId = aiotMqttOption.getClientId();
-            userName = aiotMqttOption.getUsername();
-            passWord = aiotMqttOption.getPassword();
-        }
+//        AiotMqttOption aiotMqttOption = new AiotMqttOption().getMqttOption(PRODUCTKEY, DEVICENAME, DEVICESECRET);
+//        if (aiotMqttOption == null) {
+//            Log.e(TAG, "device info error");
+//        } else {
+//            clientId = aiotMqttOption.getClientId();
+//            userName = aiotMqttOption.getUsername();
+//            passWord = aiotMqttOption.getPassword();
+//        }
+////
+//        /* 创建MqttConnectOptions对象并配置username和password */
+//        MqttConnectOptions mqttConnectOptions = new MqttConnectOptions();
+//        mqttConnectOptions.setUserName(userName);
+//        mqttConnectOptions.setPassword(passWord.toCharArray());
 //
-        /* 创建MqttConnectOptions对象并配置username和password */
-        MqttConnectOptions mqttConnectOptions = new MqttConnectOptions();
-        mqttConnectOptions.setUserName(userName);
-        mqttConnectOptions.setPassword(passWord.toCharArray());
-
-
-        /* 创建MqttAndroidClient对象, 并设置回调接口 */
-        mqttAndroidClient = new MqttAndroidClient(getApplicationContext(), host, clientId);
-        mqttAndroidClient.setCallback(new MqttCallback() {
-            @Override
-            public void connectionLost(Throwable cause) {
-                Log.i(TAG, "connection lost");
-            }
-
-            @Override
-            public void messageArrived(String topic, MqttMessage message) throws Exception {
-                Log.i(TAG, "topic: " + topic + ", msg: " + new String(message.getPayload()));
-            }
-
-            @Override
-            public void deliveryComplete(IMqttDeliveryToken token) {
-                Log.i(TAG, "msg delivered");
-            }
-        });
 //
-
+//        /* 创建MqttAndroidClient对象, 并设置回调接口 */
+//        mqttAndroidClient = new MqttAndroidClient(getApplicationContext(), host, clientId);
+//        mqttAndroidClient.setCallback(new MqttCallback() {
+//            @Override
+//            public void connectionLost(Throwable cause) {
+//                Log.i(TAG, "connection lost");
+//            }
+//
+//            @Override
+//            public void messageArrived(String topic, MqttMessage message) throws Exception {
+//                Log.i(TAG, "topic: " + topic + ", msg: " + new String(message.getPayload()));
+//            }
+//
+//            @Override
+//            public void deliveryComplete(IMqttDeliveryToken token) {
+//                Log.i(TAG, "msg delivered");
+//            }
+//        });
+//
 
         /* Mqtt建连 */
-        try {
-            mqttAndroidClient.connect(mqttConnectOptions, null, new IMqttActionListener() {
-                @Override
-                public void onSuccess(IMqttToken asyncActionToken) {
-                    Log.i(TAG, "connect succeed");
-                    subscribeTopic(SUB_TOPIC);
-                    mqttOk = true;
-                }
-
-                @Override
-                public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
-                    Log.i(TAG, "connect failed");
-                }
-            });
-        } catch (MqttException e) {
-            e.printStackTrace();
-        }
+//        try {
+//            mqttAndroidClient.connect(mqttConnectOptions, null, new IMqttActionListener() {
+//                @Override
+//                public void onSuccess(IMqttToken asyncActionToken) {
+//                    Log.i(TAG, "connect succeed");
+//                    subscribeTopic(SUB_TOPIC);
+//                    mqttOk = true;
+//                }
+//
+//                @Override
+//                public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
+//                    Log.i(TAG, "connect failed");
+//                }
+//            });
+//        } catch (MqttException e) {
+//            e.printStackTrace();
+//        }
         //MQTT
 
 
@@ -370,7 +381,9 @@ public class MainActivity extends AppCompatActivity {
         locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, locationListener);
 
         addData();
+        sendData();
     }
+
 
     @Override
     protected void onResume() {
@@ -586,62 +599,62 @@ public class MainActivity extends AppCompatActivity {
      * //     * MQTT建连选项类，输入设备三元组productKey, deviceName和deviceSecret, 生成Mqtt建连参数clientId，username和password.
      * //
      */
-    class AiotMqttOption {
-        private String username = "";
-        private String password = "";
-        private String clientId = "";
-
-        public String getUsername() {
-            return this.username;
-        }
-
-        public String getPassword() {
-            return this.password;
-        }
-
-        public String getClientId() {
-            return this.clientId;
-        }
-
-        /**
-         * 获取Mqtt建连选项对象
-         *
-         * @param productKey   产品秘钥
-         * @param deviceName   设备名称
-         * @param deviceSecret 设备机密
-         * @return AiotMqttOption对象或者NULL
-         */
-        public AiotMqttOption getMqttOption(String productKey, String deviceName, String deviceSecret) {
-            if (productKey == null || deviceName == null || deviceSecret == null) {
-                return null;
-            }
-
-            try {
-                String timestamp = Long.toString(System.currentTimeMillis());
-
-                // clientId
-                this.clientId = productKey + "." + deviceName + "|timestamp=" + timestamp +
-                        ",_v=paho-android-1.0.0,securemode=2,signmethod=hmacsha256|";
-
-                // userName
-                this.username = deviceName + "&" + productKey;
-
-                // password
-                String macSrc = "clientId" + productKey + "." + deviceName + "deviceName" +
-                        deviceName + "productKey" + productKey + "timestamp" + timestamp;
-                String algorithm = "HmacSHA256";
-                Mac mac = Mac.getInstance(algorithm);
-                SecretKeySpec secretKeySpec = new SecretKeySpec(deviceSecret.getBytes(), algorithm);
-                mac.init(secretKeySpec);
-                byte[] macRes = mac.doFinal(macSrc.getBytes());
-                password = String.format("%064x", new BigInteger(1, macRes));
-            } catch (Exception e) {
-                e.printStackTrace();
-                return null;
-            }
-            return this;
-        }
-    }
+//    class AiotMqttOption {
+//        private String username = "";
+//        private String password = "";
+//        private String clientId = "";
+//
+//        public String getUsername() {
+//            return this.username;
+//        }
+//
+//        public String getPassword() {
+//            return this.password;
+//        }
+//
+//        public String getClientId() {
+//            return this.clientId;
+//        }
+//
+//        /**
+//         * 获取Mqtt建连选项对象
+//         *
+//         * @param productKey   产品秘钥
+//         * @param deviceName   设备名称
+//         * @param deviceSecret 设备机密
+//         * @return AiotMqttOption对象或者NULL
+//         */
+//        public AiotMqttOption getMqttOption(String productKey, String deviceName, String deviceSecret) {
+//            if (productKey == null || deviceName == null || deviceSecret == null) {
+//                return null;
+//            }
+//
+//            try {
+//                String timestamp = Long.toString(System.currentTimeMillis());
+//
+//                // clientId
+//                this.clientId = productKey + "." + deviceName + "|timestamp=" + timestamp +
+//                        ",_v=paho-android-1.0.0,securemode=2,signmethod=hmacsha256|";
+//
+//                // userName
+//                this.username = deviceName + "&" + productKey;
+//
+//                // password
+//                String macSrc = "clientId" + productKey + "." + deviceName + "deviceName" +
+//                        deviceName + "productKey" + productKey + "timestamp" + timestamp;
+//                String algorithm = "HmacSHA256";
+//                Mac mac = Mac.getInstance(algorithm);
+//                SecretKeySpec secretKeySpec = new SecretKeySpec(deviceSecret.getBytes(), algorithm);
+//                mac.init(secretKeySpec);
+//                byte[] macRes = mac.doFinal(macSrc.getBytes());
+//                password = String.format("%064x", new BigInteger(1, macRes));
+//            } catch (Exception e) {
+//                e.printStackTrace();
+//                return null;
+//            }
+//            return this;
+//        }
+//    }
 
     /**
      * 加速度
@@ -649,31 +662,31 @@ public class MainActivity extends AppCompatActivity {
      *
      * @param payload 消息载荷
      */
-    public void publishMessageACC(String payload) {
-        try {
-            if (mqttAndroidClient.isConnected() == false) {
-                mqttAndroidClient.connect();
-            }
-
-            MqttMessage message = new MqttMessage();
-            message.setPayload(payload.getBytes());
-            message.setQos(0);
-            mqttAndroidClient.publish(ACC_TOPIC, message, null, new IMqttActionListener() {
-                @Override
-                public void onSuccess(IMqttToken asyncActionToken) {
-                    Log.i(TAG, "publish succeed!");
-                }
-
-                @Override
-                public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
-                    Log.i(TAG, "publish failed!");
-                }
-            });
-        } catch (MqttException e) {
-            Log.e(TAG, e.toString());
-            e.printStackTrace();
-        }
-    }
+//    public void publishMessageACC(String payload) {
+//        try {
+//            if (mqttAndroidClient.isConnected() == false) {
+//                mqttAndroidClient.connect();
+//            }
+//
+//            MqttMessage message = new MqttMessage();
+//            message.setPayload(payload.getBytes());
+//            message.setQos(0);
+//            mqttAndroidClient.publish(ACC_TOPIC, message, null, new IMqttActionListener() {
+//                @Override
+//                public void onSuccess(IMqttToken asyncActionToken) {
+//                    Log.i(TAG, "publish succeed!");
+//                }
+//
+//                @Override
+//                public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
+//                    Log.i(TAG, "publish failed!");
+//                }
+//            });
+//        } catch (MqttException e) {
+//            Log.e(TAG, e.toString());
+//            e.printStackTrace();
+//        }
+//    }
 
     /**
      * 陀螺仪
@@ -681,31 +694,31 @@ public class MainActivity extends AppCompatActivity {
      *
      * @param payload 消息载荷
      */
-    public void publishMessageGYR(String payload) {
-        try {
-            if (mqttAndroidClient.isConnected() == false) {
-                mqttAndroidClient.connect();
-            }
-
-            MqttMessage message = new MqttMessage();
-            message.setPayload(payload.getBytes());
-            message.setQos(0);
-            mqttAndroidClient.publish(GYR_TOPIC, message, null, new IMqttActionListener() {
-                @Override
-                public void onSuccess(IMqttToken asyncActionToken) {
-                    Log.i(TAG, "publish succeed!");
-                }
-
-                @Override
-                public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
-                    Log.i(TAG, "publish failed!");
-                }
-            });
-        } catch (MqttException e) {
-            Log.e(TAG, e.toString());
-            e.printStackTrace();
-        }
-    }
+//    public void publishMessageGYR(String payload) {
+//        try {
+//            if (mqttAndroidClient.isConnected() == false) {
+//                mqttAndroidClient.connect();
+//            }
+//
+//            MqttMessage message = new MqttMessage();
+//            message.setPayload(payload.getBytes());
+//            message.setQos(0);
+//            mqttAndroidClient.publish(GYR_TOPIC, message, null, new IMqttActionListener() {
+//                @Override
+//                public void onSuccess(IMqttToken asyncActionToken) {
+//                    Log.i(TAG, "publish succeed!");
+//                }
+//
+//                @Override
+//                public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
+//                    Log.i(TAG, "publish failed!");
+//                }
+//            });
+//        } catch (MqttException e) {
+//            Log.e(TAG, e.toString());
+//            e.printStackTrace();
+//        }
+//    }
 
 
     /**
@@ -714,31 +727,31 @@ public class MainActivity extends AppCompatActivity {
      *
      * @param payload 消息载荷
      */
-    public void publishMessageLOC(String payload) {
-        try {
-            if (mqttAndroidClient.isConnected() == false) {
-                mqttAndroidClient.connect();
-            }
-
-            MqttMessage message = new MqttMessage();
-            message.setPayload(payload.getBytes());
-            message.setQos(0);
-            mqttAndroidClient.publish(LOC_TOPIC, message, null, new IMqttActionListener() {
-                @Override
-                public void onSuccess(IMqttToken asyncActionToken) {
-                    Log.i(TAG, "publish succeed!");
-                }
-
-                @Override
-                public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
-                    Log.i(TAG, "publish failed!");
-                }
-            });
-        } catch (MqttException e) {
-            Log.e(TAG, e.toString());
-            e.printStackTrace();
-        }
-    }
+//    public void publishMessageLOC(String payload) {
+//        try {
+//            if (mqttAndroidClient.isConnected() == false) {
+//                mqttAndroidClient.connect();
+//            }
+//
+//            MqttMessage message = new MqttMessage();
+//            message.setPayload(payload.getBytes());
+//            message.setQos(0);
+//            mqttAndroidClient.publish(LOC_TOPIC, message, null, new IMqttActionListener() {
+//                @Override
+//                public void onSuccess(IMqttToken asyncActionToken) {
+//                    Log.i(TAG, "publish succeed!");
+//                }
+//
+//                @Override
+//                public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
+//                    Log.i(TAG, "publish failed!");
+//                }
+//            });
+//        } catch (MqttException e) {
+//            Log.e(TAG, e.toString());
+//            e.printStackTrace();
+//        }
+//    }
 
 
     /**
@@ -746,23 +759,129 @@ public class MainActivity extends AppCompatActivity {
      *
      * @param topic mqtt主题
      */
-    public void subscribeTopic(String topic) {
+//    public void subscribeTopic(String topic) {
+//        try {
+//            mqttAndroidClient.subscribe(topic, 0, null, new IMqttActionListener() {
+//                @Override
+//                public void onSuccess(IMqttToken asyncActionToken) {
+//                    Log.i(TAG, "subscribed succeed");
+//                }
+//
+//                @Override
+//                public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
+//                    Log.i(TAG, "subscribed failed");
+//                }
+//            });
+//
+//        } catch (MqttException e) {
+//            e.printStackTrace();
+//        }
+//    }
+
+
+    /**
+     *
+     */
+    private void sendData() {
+        Switch isRemoteSave = (Switch) findViewById(R.id.isRemoteSave);
+        Switch isSend = (Switch) findViewById(R.id.connectbtn);
+        Timer timer = new Timer();
+        isRemoteSave.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                if (isChecked) {
+                    Toast.makeText(MainActivity.this, "开始上传", Toast.LENGTH_SHORT).show();
+                    if(nettyClient != null){
+//                        send("11111111");
+                        timer.schedule(new TimerTask() {
+                            @Override
+                            public void run() {
+                                StringBuilder sb = new StringBuilder();
+                                getTime();
+                                sb.append(time+",");
+                                sb.append(new BigDecimal(Float.toString(accelerateX_value))+",");
+                                sb.append(new BigDecimal(Float.toString(accelerateY_value))+",");
+                                sb.append(new BigDecimal(Float.toString(accelerateZ_value))+",");
+                                sb.append(new BigDecimal(Float.toString(angleX_value))+",");
+                                sb.append(new BigDecimal(Float.toString(angleY_value))+",");
+                                sb.append(new BigDecimal(Float.toString(angleZ_value))+",");
+                                sb.append(new BigDecimal(Double.toString(latitude))+",");
+                                sb.append(new BigDecimal(Double.toString(longitude))+",");
+                                sb.append(new BigDecimal(Float.toString(speed)));
+                                send(sb.toString());
+                            }
+                        }, 0, 200);
+                    }
+                }else{
+                    timer.cancel();
+                    Toast.makeText(MainActivity.this, "停止上传", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+        isSend.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                if (isChecked) {
+                    Toast.makeText(MainActivity.this, "开始连接", Toast.LENGTH_SHORT).show();
+                    new Thread(new Runnable() {
+                        @Override
+                        public void run() {
+                            connect();
+                        }
+                    }).start();
+                }else{
+                    stop();
+                    Toast.makeText(MainActivity.this, "断开连接", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+    }
+
+    /**
+     * 创建ChatClient对象，用于连接服务器
+     */
+    public void connect(){
         try {
-            mqttAndroidClient.subscribe(topic, 0, null, new IMqttActionListener() {
-                @Override
-                public void onSuccess(IMqttToken asyncActionToken) {
-                    Log.i(TAG, "subscribed succeed");
-                }
-
-                @Override
-                public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
-                    Log.i(TAG, "subscribed failed");
-                }
-            });
-
-        } catch (MqttException e) {
+            // 创建一个ChatClient实例
+            nettyClient = new NettyClient(host.getText().toString(),Integer.parseInt(port.getText().toString()));
+            // 开始尝试连接服务器
+            nettyClient.start();
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
+
+    /**
+     * 断开与netty服务器的连接
+     */
+    public void stop() {
+        nettyClient.stop();
+    }
+
+
+    /**
+     * 发送消息
+     * @param
+     */
+    public void send(String str){
+        Log.e(TAG, "send: "+ str );
+        nettyClient.sendMsg(str);
+    }
+
+    /**
+     * 以下保证转为字符串时，不采用科学计数法
+     * @param f
+     * @return
+     */
+    public String big(float f){
+        NumberFormat nf = NumberFormat.getInstance();
+        nf.setGroupingUsed(false);
+        return nf.format(f);
+    }
+    public String big2(double d){
+        NumberFormat nf = NumberFormat.getInstance();
+        nf.setGroupingUsed(false);
+        return nf.format(d);
+    }
 }
