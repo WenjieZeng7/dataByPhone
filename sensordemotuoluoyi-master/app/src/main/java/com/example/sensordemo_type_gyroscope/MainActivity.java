@@ -1,6 +1,7 @@
-package com.example.sensordemo_type_gyroscope;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
@@ -14,6 +15,7 @@ import android.app.Service;
 import android.content.ComponentName;
 import android.content.ContentValues;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
@@ -23,12 +25,15 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.hardware.usb.UsbManager;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Message;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -63,9 +68,14 @@ import java.util.TimerTask;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
+import cn.wch.ch34xuartdriver.CH34xUARTDriver;
+
 
 public class MainActivity extends AppCompatActivity{
     private static final String TAG = "MainActivity";
+    private static final String ACTION_USB_PERMISSION = "cn.wch.wchusbdriver.USB_PERMISSION";
+    private static final String RECEIVE_DATA = "RECEIVE_DATA"; //接收数据
+    private static final int MESSAGE_RECEIVE = 0;
 
     //netty
     private NettyClient nettyClient;
@@ -103,7 +113,6 @@ public class MainActivity extends AppCompatActivity{
     private TextView tvSpeed = null;
     private TextView tvAccuracy = null;
 
-
     public float accelerateX_value;
     public float accelerateY_value;
     public float accelerateZ_value;
@@ -114,7 +123,31 @@ public class MainActivity extends AppCompatActivity{
     private double latitude;
     private double longitude;
     private float speed;
+    private float accuracy;
 
+    //合宙
+    private TextView airRMC = null;
+    private Button mBtnOpen; //打开串口
+    private boolean mIsOpen; //串口是否打开
+    private int baudRate = 115200; //波特率
+    private byte dataBit = 8; //数据位
+    private byte stopBit = 1; //停止位
+    private byte parity = 0;  //奇偶校验，0：不校验。加了会乱码。
+    private byte flowControl = 0;  //流控
+
+    private TextView airvalid = null;
+    private TextView airtime = null;
+    private TextView airlatitude = null;
+    private TextView airlongitude = null;
+    private TextView airspeed = null;
+    private TextView airbearing = null;
+
+    private String airvalid_value;
+    private String airtime_value;
+    private String airlatitude_value;  //double
+    private String airlongitude_value;  //double
+    private String airspeed_value;  //float
+    private String airbearing_value;  //float
 
     /**
      * 请求位置许可的ID
@@ -162,7 +195,12 @@ public class MainActivity extends AppCompatActivity{
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        MyApplication.driver = new CH34xUARTDriver(
+                (UsbManager) getSystemService(Context.USB_SERVICE), this,
+                ACTION_USB_PERMISSION);
+
         getPersimmions();  //定位权限
+        initView();
 
 
         //开启服务
@@ -192,40 +230,6 @@ public class MainActivity extends AppCompatActivity{
 //        };
 //        bindService(bindIntent,serviceConnection, Service.BIND_AUTO_CREATE);
 
-
-        accelerateX = (TextView) findViewById(R.id.accelerateX);
-        accelerateY = (TextView) findViewById(R.id.accelerateY);
-        accelerateZ = (TextView) findViewById(R.id.accelerateZ);
-
-        angleX = (TextView) findViewById(R.id.angleX);
-        angleY = (TextView) findViewById(R.id.angleY);
-        angleZ = (TextView) findViewById(R.id.angleZ);
-
-        tvProvider = (TextView) findViewById(R.id.tv_provider);
-        tvTime = (TextView) findViewById(R.id.tv_time);
-        tvLatitude = (TextView) findViewById(R.id.tv_latitude);
-        tvLongitude = (TextView) findViewById(R.id.tv_longitude);
-        tvAltitude = (TextView) findViewById(R.id.tv_altitude);
-        tvBearing = (TextView) findViewById(R.id.tv_bearing);
-        tvSpeed = (TextView) findViewById(R.id.tv_speed);
-        tvAccuracy = (TextView) findViewById(R.id.tv_accuracy);
-
-        host = (EditText) findViewById(R.id.host);
-        port = (EditText) findViewById(R.id.port);
-
-        // 获取一个传感器管理器 对象
-        sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
-        // 获取 陀螺仪创安起对象
-        gyroscopeSensor = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
-        //获取加速度传感器对象
-        accSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
-        // 判断是否获取到了传感器，如果没有的话直接结束activity；
-        if (gyroscopeSensor == null) {
-            Toast.makeText(this, "The device has no Gyroscope !", Toast.LENGTH_LONG).show();
-            finish();
-        }
-        //位置相关
-        locationManager = (LocationManager) getSystemService(LOCATION_SERVICE); //获取位置管理对象
 
 
 
@@ -286,99 +290,6 @@ public class MainActivity extends AppCompatActivity{
 //        }
         //MQTT
 
-
-        // 获取得到了sensor，则初始化 传感器的 监听器；
-        gyroscopeEventListener = new SensorEventListener() {
-            @Override
-            public void onSensorChanged(SensorEvent event) {
-                // 当传感器数据发生变化时 ： 进行处理
-                // 下面逻辑： 当绕z轴的加速度大于0.5 设置为蓝色； 小于-0.5则设置为黄色；
-//                switch (event.sensor.getType()) {
-//                    case Sensor.TYPE_GYROSCOPE:
-//                        if (event.values[1] > 1.5f) {
-//                            getWindow().getDecorView().setBackgroundColor(Color.BLUE);
-//                        } else if (event.values[1] < -1.5f) {
-//                            getWindow().getDecorView().setBackgroundColor(Color.YELLOW);
-//                        }
-//                        break;
-//                    default:
-//                        break;
-//                }
-                angleX_value = event.values[0];
-                angleY_value = event.values[1];
-                angleZ_value = event.values[2];
-                angleX.setText("陀螺仪x:" + angleX_value);
-                angleY.setText("陀螺仪y:" + angleY_value);
-                angleZ.setText("陀螺仪z:" + angleZ_value + "\n");
-//                if(mqttOk){
-//                    publishMessageGYR("time:"+ date + "陀螺仪x:" + v0 + "\n" + "陀螺仪y:" + v1 + "\n" + "陀螺仪z:" + v2 + "\n");
-//                }
-            }
-
-            @Override
-            public void onAccuracyChanged(Sensor sensor, int accuracy) {
-            }
-        };
-
-        //加速度监听器
-        accEventListener = new SensorEventListener() {
-            @Override
-            public void onSensorChanged(SensorEvent event) {
-                // 当传感器数据发生变化时 ： 进行处理
-                // 下面逻辑： 当绕z轴的加速度大于0.5 设置为蓝色； 小于-0.5则设置为黄色；
-//                switch (event.sensor.getType()) {
-//                    case Sensor.TYPE_GYROSCOPE:
-//                        if (event.values[1] > 1.5f) {
-//                            getWindow().getDecorView().setBackgroundColor(Color.BLUE);
-//                        } else if (event.values[1] < -1.5f) {
-//                            getWindow().getDecorView().setBackgroundColor(Color.YELLOW);
-//                        }
-//                        break;
-//                    default:
-//                        break;
-//                }
-//                getTime();
-                accelerateX_value = event.values[0];
-                accelerateY_value = event.values[1];
-                accelerateZ_value = event.values[2];
-                accelerateX.setText("加速度x:" + accelerateX_value);
-                accelerateY.setText("加速度y:" + accelerateX_value);
-                accelerateZ.setText("加速度z:" + accelerateX_value + "\n");
-//                if(mqttOk){
-//                    publishMessageACC("time:"+ date + "加速度x:"+ v0 +"\n"+"加速度y:"+ v1 +"\n"+"加速度z:"+ v2 +"\n");
-//                }
-            }
-
-            @Override
-            public void onAccuracyChanged(Sensor sensor, int accuracy) {
-            }
-        };
-
-//        地理位置监听器
-        locationListener = new LocationListener() {
-            @Override
-            public void onLocationChanged(Location location) {
-                tvProvider.setText("方式：" + location.getProvider());
-//                time = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date(location.getTime()));
-                latitude = location.getLatitude();  //纬度
-                longitude = location.getLongitude();    //经度
-                speed = location.getSpeed();
-                tvTime.setText("时间：" + time);
-                tvLatitude.setText("纬度：" + latitude + " °");
-                tvLongitude.setText("经度：" + longitude + " °");
-                tvAltitude.setText("海拔：" + location.getAltitude() + " m");
-                tvBearing.setText("方向：" + location.getBearing() + " °");
-                tvSpeed.setText("速度：" + speed + " m/s");
-                tvAccuracy.setText("精度：" + location.getAccuracy() + " m\n");
-//                if(mqttOk){
-//                    publishMessageLOC("time:"+ date +"\n"+ "latitude:"+ latitude +"\n"+"longitude:"+ longitude +"\n"+"speed:"+ speed +"\n");
-//                }
-            }
-        };
-
-        sensorManager.registerListener(gyroscopeEventListener, gyroscopeSensor, SensorManager.SENSOR_DELAY_GAME);
-        sensorManager.registerListener(accEventListener, accSensor, SensorManager.SENSOR_DELAY_GAME); //GAME的类型，其频率是适中的
-        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, locationListener);
 
         addData();
         sendData();
@@ -445,6 +356,13 @@ public class MainActivity extends AppCompatActivity{
                                 values.put("latitude", latitude);
                                 values.put("longitude", longitude);
                                 values.put("speed", speed);
+                                values.put("accuracy", accuracy);
+                                values.put("airvalid",airvalid_value);
+                                values.put("airtime",airtime_value);
+                                values.put("airlatitude",airlatitude_value);
+                                values.put("airlongitude",airlongitude_value);
+                                values.put("airspeed",airspeed_value);
+                                values.put("airbearing",airbearing_value);
                                 db.insert("Sensor1", null, values);
                             }
                         }, 0, 200);
@@ -593,6 +511,318 @@ public class MainActivity extends AppCompatActivity{
     }
 
 
+    /**
+     * 初始化界面
+     */
+    private void initView(){
+        accelerateX = (TextView) findViewById(R.id.accelerateX);
+        accelerateY = (TextView) findViewById(R.id.accelerateY);
+        accelerateZ = (TextView) findViewById(R.id.accelerateZ);
+
+        angleX = (TextView) findViewById(R.id.angleX);
+        angleY = (TextView) findViewById(R.id.angleY);
+        angleZ = (TextView) findViewById(R.id.angleZ);
+
+        tvProvider = (TextView) findViewById(R.id.tv_provider);
+        tvTime = (TextView) findViewById(R.id.tv_time);
+        tvLatitude = (TextView) findViewById(R.id.tv_latitude);
+        tvLongitude = (TextView) findViewById(R.id.tv_longitude);
+        tvAltitude = (TextView) findViewById(R.id.tv_altitude);
+        tvBearing = (TextView) findViewById(R.id.tv_bearing);
+        tvSpeed = (TextView) findViewById(R.id.tv_speed);
+        tvAccuracy = (TextView) findViewById(R.id.tv_accuracy);
+
+        host = (EditText) findViewById(R.id.host);
+        port = (EditText) findViewById(R.id.port);
+
+
+        airRMC = (TextView) findViewById(R.id.airRMC);
+        airvalid = (TextView) findViewById(R.id.airvalid);
+        airtime = (TextView) findViewById(R.id.airtime);
+        airlatitude = (TextView) findViewById(R.id.airlatitude);
+        airlongitude = (TextView) findViewById(R.id.airlongitude);
+        airspeed = (TextView) findViewById(R.id.airspeed);
+        airbearing = (TextView) findViewById(R.id.airbearing);
+        airtime = (TextView) findViewById(R.id.airtime);
+        mBtnOpen = findViewById(R.id.btn_open);
+        mBtnOpen.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if (!mIsOpen) {
+                    // 执行打开串口操作
+                    openUsbDevice();
+                } else {
+                    // 执行关闭串口操作
+                    closeUsbDevice();
+                }
+            }
+        });
+        refreshUIAndDeviceOpenState(mIsOpen); //更改“打开串口”的显示值
+
+
+        // 获取一个传感器管理器 对象
+        sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
+        // 获取 陀螺仪创安起对象
+        gyroscopeSensor = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
+        //获取加速度传感器对象
+        accSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
+        // 判断是否获取到了传感器，如果没有的话直接结束activity；
+        if (gyroscopeSensor == null) {
+            Toast.makeText(this, "The device has no Gyroscope !", Toast.LENGTH_LONG).show();
+            finish();
+        }
+        //位置相关
+        locationManager = (LocationManager) getSystemService(LOCATION_SERVICE); //获取位置管理对象
+
+        // 获取得到了sensor，则初始化 传感器的 监听器；
+        gyroscopeEventListener = new SensorEventListener() {
+            @Override
+            public void onSensorChanged(SensorEvent event) {
+                // 当传感器数据发生变化时 ： 进行处理
+                // 下面逻辑： 当绕z轴的加速度大于0.5 设置为蓝色； 小于-0.5则设置为黄色；
+//                switch (event.sensor.getType()) {
+//                    case Sensor.TYPE_GYROSCOPE:
+//                        if (event.values[1] > 1.5f) {
+//                            getWindow().getDecorView().setBackgroundColor(Color.BLUE);
+//                        } else if (event.values[1] < -1.5f) {
+//                            getWindow().getDecorView().setBackgroundColor(Color.YELLOW);
+//                        }
+//                        break;
+//                    default:
+//                        break;
+//                }
+                angleX_value = event.values[0];
+                angleY_value = event.values[1];
+                angleZ_value = event.values[2];
+                angleX.setText("陀螺仪x:" + angleX_value);
+                angleY.setText("陀螺仪y:" + angleY_value);
+                angleZ.setText("陀螺仪z:" + angleZ_value + "\n");
+//                if(mqttOk){
+//                    publishMessageGYR("time:"+ date + "陀螺仪x:" + v0 + "\n" + "陀螺仪y:" + v1 + "\n" + "陀螺仪z:" + v2 + "\n");
+//                }
+            }
+
+            @Override
+            public void onAccuracyChanged(Sensor sensor, int accuracy) {
+            }
+        };
+
+        //加速度监听器
+        accEventListener = new SensorEventListener() {
+            @Override
+            public void onSensorChanged(SensorEvent event) {
+                // 当传感器数据发生变化时 ： 进行处理
+                // 下面逻辑： 当绕z轴的加速度大于0.5 设置为蓝色； 小于-0.5则设置为黄色；
+//                switch (event.sensor.getType()) {
+//                    case Sensor.TYPE_GYROSCOPE:
+//                        if (event.values[1] > 1.5f) {
+//                            getWindow().getDecorView().setBackgroundColor(Color.BLUE);
+//                        } else if (event.values[1] < -1.5f) {
+//                            getWindow().getDecorView().setBackgroundColor(Color.YELLOW);
+//                        }
+//                        break;
+//                    default:
+//                        break;
+//                }
+//                getTime();
+                accelerateX_value = event.values[0];
+                accelerateY_value = event.values[1];
+                accelerateZ_value = event.values[2];
+                accelerateX.setText("加速度x:" + accelerateX_value);
+                accelerateY.setText("加速度y:" + accelerateX_value);
+                accelerateZ.setText("加速度z:" + accelerateX_value + "\n");
+//                if(mqttOk){
+//                    publishMessageACC("time:"+ date + "加速度x:"+ v0 +"\n"+"加速度y:"+ v1 +"\n"+"加速度z:"+ v2 +"\n");
+//                }
+            }
+
+            @Override
+            public void onAccuracyChanged(Sensor sensor, int accuracy) {
+            }
+        };
+
+//        地理位置监听器
+        locationListener = new LocationListener() {
+            @Override
+            public void onLocationChanged(Location location) {
+                tvProvider.setText("方式：" + location.getProvider());
+//                time = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date(location.getTime()));
+                latitude = location.getLatitude();  //纬度
+                longitude = location.getLongitude();    //经度
+                speed = location.getSpeed();
+                accuracy = location.getAccuracy();
+                tvTime.setText("时间：" + time);
+                tvLatitude.setText("纬度：" + latitude + " °");
+                tvLongitude.setText("经度：" + longitude + " °");
+                tvAltitude.setText("海拔：" + location.getAltitude() + " m");
+                tvBearing.setText("方向：" + location.getBearing() + " °");
+                tvSpeed.setText("速度：" + speed + " m/s");
+                tvAccuracy.setText("精度：" + accuracy + " m\n");
+//                if(mqttOk){
+//                    publishMessageLOC("time:"+ date +"\n"+ "latitude:"+ latitude +"\n"+"longitude:"+ longitude +"\n"+"speed:"+ speed +"\n");
+//                }
+            }
+        };
+
+        sensorManager.registerListener(gyroscopeEventListener, gyroscopeSensor, SensorManager.SENSOR_DELAY_GAME);
+        sensorManager.registerListener(accEventListener, accSensor, SensorManager.SENSOR_DELAY_GAME); //GAME的类型，其频率是适中的
+        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, locationListener);
+
+
+
+    }
+
+
+    /**
+     * 执行关闭串口操作
+     */
+    private void closeUsbDevice() {
+
+        try {
+            Thread.sleep(200);
+        } catch (InterruptedException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+        MyApplication.driver.CloseDevice();
+        // 更新按钮的状态
+        refreshUIAndDeviceOpenState(false);
+        Toast.makeText(this, "串口已关闭", Toast.LENGTH_SHORT).show();
+    }
+
+
+    /**
+     * 执行打开串口操作
+     */
+    private void openUsbDevice() {
+        int retval = MyApplication.driver.ResumeUsbPermission();
+        Log.d(TAG, "ResumeUsbPermission retval is " + retval);
+        if (retval == 0) {
+            retval = MyApplication.driver.ResumeUsbList();
+            if (retval == 0) {
+                // 打开串口成功
+                if (MyApplication.driver.mDeviceConnection != null) {
+                    if (!MyApplication.driver.UartInit()) {
+                        // 初始化失败
+                        Toast.makeText(MainActivity.this, "Initialization failed!",
+                                Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    Toast.makeText(this, "串口已打开", Toast.LENGTH_SHORT).show();
+                    // 进行一次默认配置操作
+                    MyApplication.driver.SetConfig(baudRate, stopBit, dataBit, parity, flowControl);
+                    // 更新UI和是否打开串口的标志
+                    refreshUIAndDeviceOpenState(true);
+                    //发送$PGKC242,0,1,0,0,0,0*2A\r\n。设置只回传RMC语句
+                    setRMC();
+                    try {
+                        Thread.sleep(500);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    // 开启读线程读取串口接收到的数据
+                    new ReadThread().start();
+                } else {
+                    Toast.makeText(this, "打开串口失败", Toast.LENGTH_SHORT).show();
+                }
+            } else if (retval == -1) {
+                // 打开串口失败
+                Toast.makeText(this, "打开串口失败", Toast.LENGTH_SHORT).show();
+                MyApplication.driver.CloseDevice();
+            } else {
+                //授权
+                AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+                builder.setIcon(R.mipmap.ic_launcher_round);
+                builder.setTitle("未授权限");
+                builder.setMessage("确认退出吗？");
+                builder.setPositiveButton("确定", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        System.exit(0);
+                    }
+                });
+                builder.setNegativeButton("返回", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        // TODO Auto-generated method stub
+                    }
+                });
+                builder.show();
+            }
+        } else {
+            Toast.makeText(this, "未发现有效串口设备", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    /**
+     * 发送$PGKC242,0,1,0,0,0,0*2A\r\n。设置只回传RMC语句
+     */
+    private void setRMC() {
+        sendWriteData("$PGKC242,0,1,0,0,0,0*2A\r\n");
+    }
+
+
+    /**
+     * 执行发送数据操作
+     *
+     * @param data
+     */
+    private void sendWriteData(String data) {
+        byte[] bytes = null;
+        bytes = toByteArray(data);
+
+        // 写数据，第一个参数为需要发送的字节数组，第二个参数为需要发送的字节长度
+        // 返回实际发送的字节长度
+        int length = MyApplication.driver.WriteData(bytes, bytes.length);
+        if (length < 0) {
+            Toast.makeText(this, "发送数据失败", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+
+    /**
+     * 将 String 类型数据转化为 byte[] 数组
+     *
+     * @param arg
+     * @return
+     */
+    private byte[] toByteArray(String arg) {
+
+        if (arg != null) {
+            /* 先去除String中的' '，然后将String转换为char数组 */
+            char[] NewArray = new char[1000];
+            char[] array = arg.toCharArray();
+            int length = 0;
+            for (int i = 0; i < array.length; i++) {
+                if (array[i] != ' ') {
+                    NewArray[length] = array[i];
+                    length++;
+                }
+            }
+
+            byte[] byteArray = new byte[length];
+            for (int i = 0; i < length; i++) {
+                byteArray[i] = (byte) NewArray[i];
+            }
+            return byteArray;
+
+        }
+        return new byte[]{};
+    }
+
+    /**
+     * 根据是否已经打开串口刷新部分按钮的状态
+     *
+     * @param isOpen 是否已经打开串口
+     */
+    private void refreshUIAndDeviceOpenState(boolean isOpen) {
+        mIsOpen = isOpen;
+        if (isOpen) {
+            mBtnOpen.setText("关闭串口");
+        } else {
+            mBtnOpen.setText("打开串口");
+        }
+    }
 
 
     /**
@@ -807,7 +1037,8 @@ public class MainActivity extends AppCompatActivity{
                                 sb.append(new BigDecimal(Float.toString(angleZ_value))+",");
                                 sb.append(new BigDecimal(Double.toString(latitude))+",");
                                 sb.append(new BigDecimal(Double.toString(longitude))+",");
-                                sb.append(new BigDecimal(Float.toString(speed)));
+                                sb.append(new BigDecimal(Float.toString(speed)) + ",");
+                                sb.append(new BigDecimal(Float.toString(accuracy)));
                                 send(sb.toString());
                             }
                         }, 0, 200);
@@ -884,4 +1115,78 @@ public class MainActivity extends AppCompatActivity{
         nf.setGroupingUsed(false);
         return nf.format(d);
     }
+
+
+
+    /**
+     * 读取接收数据的线程
+     */
+    private class ReadThread extends Thread {
+        @Override
+        public void run() {
+            byte[] buffer = new byte[512];
+            StringBuilder sb = new StringBuilder();
+            while (true) {
+//                try {
+//                    Thread.sleep(10);
+//                } catch (InterruptedException e) {
+//                    e.printStackTrace();
+//                }
+                if(!mIsOpen){
+                    break;
+                }
+                // 读取数据,返回实际读取的字节数
+                int length = MyApplication.driver.ReadData(buffer, buffer.length);
+                if (length > 0) {
+                    String recv = new String(buffer,0,length);
+//                    Message msg = Message.obtain();
+                    sb.append(recv);
+                    if(sb.length() >= 75){
+                        Message msg = Message.obtain();
+                        msg.obj = sb.toString();
+                        mHandler.sendMessage(msg);  //把数据返回给主线程处理
+                        sb.delete(0,sb.length());
+                    }
+//                    msg.obj = recv;
+//                    mHandler.sendMessage(msg);
+                }
+            }
+        }
+    }
+
+//    //显示数据
+//    private Handler mHandler = new Handler(new Handler.Callback() {
+//        @Override
+//        public boolean handleMessage(Message msg) {
+//            String out = (String) msg.obj;
+//            airRMC.setText(out);
+//            return false;
+//        }
+//    });
+
+    //显示数据
+    private Handler mHandler = new Handler(){
+        @Override
+        public void handleMessage(@NonNull Message msg) {
+            super.handleMessage(msg);
+            String out = (String) msg.obj;
+            //$GNRMC,083647.000,A,3015.82926,N,12006.91929,E,0.000,243.76,060522,,,A,V*3C
+            String[] split = out.split(",");
+            airvalid.setText("定位状态：" + split[2]);
+            airlatitude.setText("纬度：" + split[3]);
+            airlongitude.setText("经度：" + split[5]);
+            airbearing.setText("航向：" + split[8]);
+            airspeed.setText("速度：" + split[7]);
+            airtime.setText("时间：" + split[9] + " " + split[1]);
+            airRMC.setText(out);
+
+            airvalid_value = split[2];
+            airlatitude_value = split[3];
+            airlongitude_value = split[5];
+            airspeed_value = split[7];
+            airbearing_value = split[8];
+            airtime_value = split[9] + " " + split[1];
+        }
+    };
+
 }

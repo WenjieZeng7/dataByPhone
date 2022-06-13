@@ -17,7 +17,14 @@ public class MyDatabaseHelper extends SQLiteOpenHelper {
             + "angleZ real,"
             + "latitude real,"
             + "longitude real,"
-            + "speed real)";
+            + "speed real,"
+            + "accuracy real,"
+            + "airvalid text,"
+            + "airtime text,"
+            + "airlatitude text,"
+            + "airlongitude text,"
+            + "airspeed text,"
+            + "airbearing text)";
     private Context mContext;
 
     public MyDatabaseHelper(Context context, String name, SQLiteDatabase.CursorFactory factory, int version) {

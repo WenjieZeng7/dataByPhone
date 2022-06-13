@@ -33,6 +33,11 @@
 <!--        />-->
 <!--    </ScrollView>-->
 
+    <ScrollView
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        tools:ignore="MissingConstraints">
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -153,19 +158,68 @@
             android:text="9999"
             />
 
-        <Switch
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal" >
+            <Switch
             android:id="@+id/connectbtn"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="连接远程数据库"
             />
-
-        <Switch
+             <Switch
             android:id="@+id/isRemoteSave"
             android:text="开始上传数据"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             />
+        </LinearLayout>
+
+
+        <TextView
+            android:id="@+id/airRMC"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            />
+
+        <TextView
+            android:id="@+id/airvalid"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            />
+        <TextView
+            android:id="@+id/airtime"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            />
+        <TextView
+            android:id="@+id/airlatitude"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            />
+        <TextView
+            android:id="@+id/airlongitude"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            />
+        <TextView
+            android:id="@+id/airspeed"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            />
+        <TextView
+            android:id="@+id/airbearing"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            />
+
+        <Button
+            android:id="@+id/btn_open"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="打开串口" />
+
 <!--        <Button-->
 <!--            android:id="@+id/addData_start"-->
 <!--            android:layout_width="wrap_content"-->
@@ -181,6 +235,7 @@
 <!--            android:text="END"/>-->
 
     </LinearLayout>
+    </ScrollView>
 
 
 <!--    <Button-->
