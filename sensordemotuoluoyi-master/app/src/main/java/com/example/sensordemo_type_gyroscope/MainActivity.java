@@ -1,3 +1,4 @@
+ package com.example.sensordemo_type_gyroscope;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
@@ -365,7 +366,7 @@ public class MainActivity extends AppCompatActivity{
                                 values.put("airbearing",airbearing_value);
                                 db.insert("Sensor1", null, values);
                             }
-                        }, 0, 200);
+                        }, 0, 10);
                     }
                 }else{
                     Toast.makeText(MainActivity.this, "结束保存", Toast.LENGTH_SHORT).show();
