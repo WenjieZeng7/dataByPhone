@@ -128,9 +128,7 @@ public class MainActivity extends AppCompatActivity {
     final private String DEVICESECRET = "81690e1ee1a86b12ca73b42378329ddf";
 
     /* 自动Topic, 用于上报消息 */
-    final private String GYR_TOPIC = "/" + PRODUCTKEY + "/" + DEVICENAME + "/user/update";  //陀螺仪
-    final private String ACC_TOPIC = "/" + PRODUCTKEY + "/" + DEVICENAME + "/user/update";  //加速度
-    final private String LOC_TOPIC = "/" + PRODUCTKEY + "/" + DEVICENAME + "/user/update";  //位置服务
+    final private String TOPIC = "/" + PRODUCTKEY + "/" + DEVICENAME + "/user/update";
     /* 自动Topic, 用于接受消息 */
     final private String SUB_TOPIC = "/" + PRODUCTKEY + "/" + DEVICENAME + "/user/get";
 
@@ -145,7 +143,6 @@ public class MainActivity extends AppCompatActivity {
     private boolean mqttOk = false;
 
 
-
     @RequiresApi(api = Build.VERSION_CODES.O)
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -153,34 +150,6 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         getPersimmions();  //定位权限
-
-
-        //开启服务
-//        Intent intent = new Intent(this,MyService.class);
-//        this.startForegroundService(intent);
-
-        //绑定服务
-//        Intent bindIntent = new Intent(this,MyService.class);
-//        ServiceConnection serviceConnection = new ServiceConnection() {
-//            @Override
-//            public void onServiceConnected(ComponentName name, IBinder service) {
-//                //绑定成功后todo
-//                MyService myService = ((MyService.MyBinder)service).getService();
-//                Log.d("hello","bindService start");
-//                new MyService.LocationCallback() {
-//                    @Override
-//                    public void onLocation(Location location) {
-//                        Log.d("hello", String.valueOf(location.getLatitude()));
-//                    }
-//                };
-//            }
-//
-//            @Override
-//            public void onServiceDisconnected(ComponentName name) {
-//                //取消绑定后todo
-//            }
-//        };
-//        bindService(bindIntent,serviceConnection, Service.BIND_AUTO_CREATE);
 
 
         accelerateX = (TextView) findViewById(R.id.accelerateX);
@@ -216,83 +185,10 @@ public class MainActivity extends AppCompatActivity {
         locationManager = (LocationManager) getSystemService(LOCATION_SERVICE); //获取位置管理对象
 
 
-
-        //MQTT
-        /* 获取Mqtt建连信息clientId, username, password */
-        AiotMqttOption aiotMqttOption = new AiotMqttOption().getMqttOption(PRODUCTKEY, DEVICENAME, DEVICESECRET);
-        if (aiotMqttOption == null) {
-            Log.e(TAG, "device info error");
-        } else {
-            clientId = aiotMqttOption.getClientId();
-            userName = aiotMqttOption.getUsername();
-            passWord = aiotMqttOption.getPassword();
-        }
-//
-        /* 创建MqttConnectOptions对象并配置username和password */
-        MqttConnectOptions mqttConnectOptions = new MqttConnectOptions();
-        mqttConnectOptions.setUserName(userName);
-        mqttConnectOptions.setPassword(passWord.toCharArray());
-
-
-        /* 创建MqttAndroidClient对象, 并设置回调接口 */
-        mqttAndroidClient = new MqttAndroidClient(getApplicationContext(), host, clientId);
-        mqttAndroidClient.setCallback(new MqttCallback() {
-            @Override
-            public void connectionLost(Throwable cause) {
-                Log.i(TAG, "connection lost");
-            }
-
-            @Override
-            public void messageArrived(String topic, MqttMessage message) throws Exception {
-                Log.i(TAG, "topic: " + topic + ", msg: " + new String(message.getPayload()));
-            }
-
-            @Override
-            public void deliveryComplete(IMqttDeliveryToken token) {
-                Log.i(TAG, "msg delivered");
-            }
-        });
-//
-
-
-        /* Mqtt建连 */
-        try {
-            mqttAndroidClient.connect(mqttConnectOptions, null, new IMqttActionListener() {
-                @Override
-                public void onSuccess(IMqttToken asyncActionToken) {
-                    Log.i(TAG, "connect succeed");
-                    subscribeTopic(SUB_TOPIC);
-                    mqttOk = true;
-                }
-
-                @Override
-                public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
-                    Log.i(TAG, "connect failed");
-                }
-            });
-        } catch (MqttException e) {
-            e.printStackTrace();
-        }
-        //MQTT
-
-
         // 获取得到了sensor，则初始化 传感器的 监听器；
         gyroscopeEventListener = new SensorEventListener() {
             @Override
             public void onSensorChanged(SensorEvent event) {
-                // 当传感器数据发生变化时 ： 进行处理
-                // 下面逻辑： 当绕z轴的加速度大于0.5 设置为蓝色； 小于-0.5则设置为黄色；
-//                switch (event.sensor.getType()) {
-//                    case Sensor.TYPE_GYROSCOPE:
-//                        if (event.values[1] > 1.5f) {
-//                            getWindow().getDecorView().setBackgroundColor(Color.BLUE);
-//                        } else if (event.values[1] < -1.5f) {
-//                            getWindow().getDecorView().setBackgroundColor(Color.YELLOW);
-//                        }
-//                        break;
-//                    default:
-//                        break;
-//                }
                 angleX_value = event.values[0];
                 angleY_value = event.values[1];
                 angleZ_value = event.values[2];
@@ -313,20 +209,6 @@ public class MainActivity extends AppCompatActivity {
         accEventListener = new SensorEventListener() {
             @Override
             public void onSensorChanged(SensorEvent event) {
-                // 当传感器数据发生变化时 ： 进行处理
-                // 下面逻辑： 当绕z轴的加速度大于0.5 设置为蓝色； 小于-0.5则设置为黄色；
-//                switch (event.sensor.getType()) {
-//                    case Sensor.TYPE_GYROSCOPE:
-//                        if (event.values[1] > 1.5f) {
-//                            getWindow().getDecorView().setBackgroundColor(Color.BLUE);
-//                        } else if (event.values[1] < -1.5f) {
-//                            getWindow().getDecorView().setBackgroundColor(Color.YELLOW);
-//                        }
-//                        break;
-//                    default:
-//                        break;
-//                }
-//                getTime();
                 accelerateX_value = event.values[0];
                 accelerateY_value = event.values[1];
                 accelerateZ_value = event.values[2];
@@ -347,6 +229,7 @@ public class MainActivity extends AppCompatActivity {
         locationListener = new LocationListener() {
             @Override
             public void onLocationChanged(Location location) {
+                getTime();
                 tvProvider.setText("方式：" + location.getProvider());
 //                time = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date(location.getTime()));
                 latitude = location.getLatitude();  //纬度
@@ -370,7 +253,9 @@ public class MainActivity extends AppCompatActivity {
         locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, locationListener);
 
         addData();
+        sendData();
     }
+
 
     @Override
     protected void onResume() {
@@ -400,14 +285,13 @@ public class MainActivity extends AppCompatActivity {
 
 
     private boolean isRecord;
+
     /**
      * 写入SQLite
      */
     private void addData() {
         MyDatabaseHelper dbHelper = new MyDatabaseHelper(this, "SQLite1.db", null, 1);
         dbHelper.getWritableDatabase();
-//        Button start = (Button) findViewById(R.id.addData_start);
-//        Button end = (Button) findViewById(R.id.addData_end);
         Switch isLocalSave = (Switch) findViewById(R.id.isLocalSave);
         isLocalSave.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
@@ -436,96 +320,105 @@ public class MainActivity extends AppCompatActivity {
                             }
                         }, 0, 200);
                     }
-                }else{
+                } else {
                     Toast.makeText(MainActivity.this, "结束保存", Toast.LENGTH_SHORT).show();
                 }
             }
         });
-
-//        start.setOnClickListener(new View.OnClickListener() {
-//            @Override
-//            public void onClick(View v) {
-//                Toast.makeText(MainActivity.this, "开始保存", Toast.LENGTH_SHORT).show();
-//                isRecord = true;
-//                if (isRecord = true) {
-//                    Timer timer = new Timer();
-//                    timer.schedule(new TimerTask() {
-//                        @Override
-//                        public void run() {
-//                            SQLiteDatabase db = dbHelper.getWritableDatabase();
-//                            ContentValues values = new ContentValues();
-//                            values.put("time", time);
-//                            values.put("accelerateX", accelerateX_value);
-//                            values.put("accelerateY", accelerateY_value);
-//                            values.put("accelerateZ", accelerateZ_value);
-//                            values.put("angleX", angleX_value);
-//                            values.put("angleY", angleY_value);
-//                            values.put("angleZ", angleZ_value);
-//                            values.put("latitude", latitude);
-//                            values.put("longitude", longitude);
-//                            values.put("speed", speed);
-//                            db.insert("Sensor1", null, values);
-//                        }
-//                    }, 0, 200);
-//                }
-//            }
-//        });
-//        end.setOnClickListener(new View.OnClickListener() {
-//            @Override
-//            public void onClick(View v) {
-//                isRecord = false;
-//                Toast.makeText(MainActivity.this, "结束保存", Toast.LENGTH_SHORT).show();
-//            }
-//        });
-
-
-//        clear.setOnClickListener(new View.OnClickListener() {
-//            @Override
-//            public void onClick(View v) {
-//                SQLiteDatabase db = dbHelper.getWritableDatabase();
-//                db.delete("Sensor1", "id > ?", new String[]{"0"});
-//                Toast.makeText(MainActivity.this, "清除完成", Toast.LENGTH_SHORT).show();
-//            }
-//        });
     }
 
 
-//    /**
-//     * 检查权限
-//     * @return
-//     */
-//    private boolean checkPermission() {
-//        if (ActivityCompat.checkSelfPermission(this,Manifest.permission.ACCESS_FINE_LOCATION)
-//                != PackageManager.PERMISSION_GRANTED
-//                || ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
-//                != PackageManager.PERMISSION_GRANTED) {
-//            return false;
-//        }
-//        return true;
-//    }
+    private void sendData() {
+        Switch isRemoteSave = (Switch) findViewById(R.id.isRemoteSave);
+        Timer timer = new Timer();
+        isRemoteSave.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                if (isChecked) {
+                    //MQTT
+                    /* 获取Mqtt建连信息clientId, username, password */
+                    AiotMqttOption aiotMqttOption = new AiotMqttOption().getMqttOption(PRODUCTKEY, DEVICENAME, DEVICESECRET);
+                    if (aiotMqttOption == null) {
+                        Log.e(TAG, "device info error");
+                    } else {
+                        clientId = aiotMqttOption.getClientId();
+                        userName = aiotMqttOption.getUsername();
+                        passWord = aiotMqttOption.getPassword();
+                    }
+//
+                    /* 创建MqttConnectOptions对象并配置username和password */
+                    MqttConnectOptions mqttConnectOptions = new MqttConnectOptions();
+                    mqttConnectOptions.setUserName(userName);
+                    mqttConnectOptions.setPassword(passWord.toCharArray());
 
-//    /**
-//     * 请求位置权限
-//     */
-//    private void requestLocationPermissions() {
-//        if (ActivityCompat.shouldShowRequestPermissionRationale(this,
-//                Manifest.permission.ACCESS_FINE_LOCATION)
-//                || ActivityCompat.shouldShowRequestPermissionRationale(this,
-//                Manifest.permission.ACCESS_COARSE_LOCATION)) {
-//            Snackbar.make(layoutLocation, R.string.app_location_permission_demonstrate_access,
-//                    Snackbar.LENGTH_INDEFINITE)
-//                    .setAction(R.string.app_ok, new View.OnClickListener() {
-//                        @Override
-//                        public void onClick(View view) {
-//                            ActivityCompat.requestPermissions(getActivity(),
-//                                    PERMISSIONS_LOCATION, REQUEST_LOCATION);
-//                        }
-//                    }).show();
-//        } else {
-//            ActivityCompat.requestPermissions(getActivity(),
-//                    PERMISSIONS_LOCATION, REQUEST_LOCATION);
-//        }
-//    }
+
+                    /* 创建MqttAndroidClient对象, 并设置回调接口 */
+                    mqttAndroidClient = new MqttAndroidClient(getApplicationContext(), host, clientId);
+                    mqttAndroidClient.setCallback(new MqttCallback() {
+                        @Override
+                        public void connectionLost(Throwable cause) {
+                            Log.i(TAG, "connection lost");
+                        }
+
+                        @Override
+                        public void messageArrived(String topic, MqttMessage message) throws Exception {
+                            Log.i(TAG, "topic: " + topic + ", msg: " + new String(message.getPayload()));
+                        }
+
+                        @Override
+                        public void deliveryComplete(IMqttDeliveryToken token) {
+                            Log.i(TAG, "msg delivered");
+                        }
+                    });
+
+
+                    /* Mqtt建连 */
+                    try {
+                        mqttAndroidClient.connect(mqttConnectOptions, null, new IMqttActionListener() {
+                            @Override
+                            public void onSuccess(IMqttToken asyncActionToken) {
+                                Log.i(TAG, "connect succeed");
+                                subscribeTopic(SUB_TOPIC);
+                                mqttOk = true;
+                                Toast.makeText(MainActivity.this, "服务器连接成功", Toast.LENGTH_SHORT).show();
+                            }
+
+                            @Override
+                            public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
+                                Log.i(TAG, "connect failed");
+                            }
+                        });
+                    } catch (MqttException e) {
+                        Toast.makeText(MainActivity.this, "服务器连接失败", Toast.LENGTH_SHORT).show();
+                        e.printStackTrace();
+                    }
+                    //MQTT
+
+                    timer.schedule(new TimerTask() {
+                        @Override
+                        public void run() {
+                            if (mqttOk) {
+                                getTime();
+                                publishMessage("time:" + time + "加速度x:" + accelerateX_value + "\n" + "加速度y:" + accelerateY_value + "\n" + "加速度z:" + accelerateZ_value + "\n"
+                                        + "陀螺仪x:" + angleX_value + "\n" + "陀螺仪y:" + angleY_value + "\n" + "陀螺仪z:" + angleZ_value + "\n"
+                                        + "latitude:" + latitude + "\n" + "longitude:" + longitude + "\n" + "speed:" + speed + "\n");
+                            }
+                        }
+                    }, 0, 200);
+
+
+                } else {
+                    timer.cancel();
+                    try {
+                        mqttAndroidClient.disconnect();
+                    } catch (MqttException e) {
+                        e.printStackTrace();
+                    }
+                    Toast.makeText(MainActivity.this, "停止上传", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+    }
 
     @TargetApi(23)
     private void getPersimmions() {
@@ -578,8 +471,6 @@ public class MainActivity extends AppCompatActivity {
         Date mDate = new Date(System.currentTimeMillis());
         time = formatter.format(mDate);
     }
-
-
 
 
     /**
@@ -644,12 +535,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * 加速度
      * 向默认的主题/user/update发布消息
      *
      * @param payload 消息载荷
      */
-    public void publishMessageACC(String payload) {
+    public void publishMessage(String payload) {
         try {
             if (mqttAndroidClient.isConnected() == false) {
                 mqttAndroidClient.connect();
@@ -658,72 +548,7 @@ public class MainActivity extends AppCompatActivity {
             MqttMessage message = new MqttMessage();
             message.setPayload(payload.getBytes());
             message.setQos(0);
-            mqttAndroidClient.publish(ACC_TOPIC, message, null, new IMqttActionListener() {
-                @Override
-                public void onSuccess(IMqttToken asyncActionToken) {
-                    Log.i(TAG, "publish succeed!");
-                }
-
-                @Override
-                public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
-                    Log.i(TAG, "publish failed!");
-                }
-            });
-        } catch (MqttException e) {
-            Log.e(TAG, e.toString());
-            e.printStackTrace();
-        }
-    }
-
-    /**
-     * 陀螺仪
-     * 向默认的主题/user/update发布消息
-     *
-     * @param payload 消息载荷
-     */
-    public void publishMessageGYR(String payload) {
-        try {
-            if (mqttAndroidClient.isConnected() == false) {
-                mqttAndroidClient.connect();
-            }
-
-            MqttMessage message = new MqttMessage();
-            message.setPayload(payload.getBytes());
-            message.setQos(0);
-            mqttAndroidClient.publish(GYR_TOPIC, message, null, new IMqttActionListener() {
-                @Override
-                public void onSuccess(IMqttToken asyncActionToken) {
-                    Log.i(TAG, "publish succeed!");
-                }
-
-                @Override
-                public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
-                    Log.i(TAG, "publish failed!");
-                }
-            });
-        } catch (MqttException e) {
-            Log.e(TAG, e.toString());
-            e.printStackTrace();
-        }
-    }
-
-
-    /**
-     * 位置信息
-     * 向默认的主题/user/update发布消息
-     *
-     * @param payload 消息载荷
-     */
-    public void publishMessageLOC(String payload) {
-        try {
-            if (mqttAndroidClient.isConnected() == false) {
-                mqttAndroidClient.connect();
-            }
-
-            MqttMessage message = new MqttMessage();
-            message.setPayload(payload.getBytes());
-            message.setQos(0);
-            mqttAndroidClient.publish(LOC_TOPIC, message, null, new IMqttActionListener() {
+            mqttAndroidClient.publish(TOPIC, message, null, new IMqttActionListener() {
                 @Override
                 public void onSuccess(IMqttToken asyncActionToken) {
                     Log.i(TAG, "publish succeed!");
