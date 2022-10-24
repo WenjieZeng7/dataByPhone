@@ -49,6 +49,7 @@ import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -400,7 +401,7 @@ public class MainActivity extends AppCompatActivity {
                             if (mqttOk) {
                                 getTime();
                                 publishMessage("time:" + time + "加速度x:" + accelerateX_value + "\n" + "加速度y:" + accelerateY_value + "\n" + "加速度z:" + accelerateZ_value + "\n"
-                                        + "陀螺仪x:" + angleX_value + "\n" + "陀螺仪y:" + angleY_value + "\n" + "陀螺仪z:" + angleZ_value + "\n"
+                                        + "陀螺仪x:" + new BigDecimal(Float.toString(angleX_value))  + "\n" + "陀螺仪y:" + new BigDecimal(Float.toString(angleY_value)) + "\n" + "陀螺仪z:" + new BigDecimal(Float.toString(angleZ_value)) + "\n"
                                         + "latitude:" + latitude + "\n" + "longitude:" + longitude + "\n" + "speed:" + speed + "\n");
                             }
                         }
