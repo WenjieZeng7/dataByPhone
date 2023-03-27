@@ -142,6 +142,8 @@ public class MainActivity extends AppCompatActivity {
 
     MqttAndroidClient mqttAndroidClient;
     private boolean mqttOk = false;
+    StringBuilder payload = new StringBuilder();
+    int times;
 
 
     @RequiresApi(api = Build.VERSION_CODES.O)
@@ -171,9 +173,9 @@ public class MainActivity extends AppCompatActivity {
         tvAccuracy = (TextView) findViewById(R.id.tv_accuracy);
 
 
-        // 获取一个传感器管理器 对象
+        // 获取一个传感器管理器对象
         sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
-        // 获取 陀螺仪创安起对象
+        // 获取陀螺仪对象
         gyroscopeSensor = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
         //获取加速度传感器对象
         accSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
@@ -319,7 +321,7 @@ public class MainActivity extends AppCompatActivity {
                                 values.put("speed", speed);
                                 db.insert("Sensor1", null, values);
                             }
-                        }, 0, 200);
+                        }, 0, 10);
                     }
                 } else {
                     Toast.makeText(MainActivity.this, "结束保存", Toast.LENGTH_SHORT).show();
@@ -395,17 +397,30 @@ public class MainActivity extends AppCompatActivity {
                     }
                     //MQTT
 
+
                     timer.schedule(new TimerTask() {
                         @Override
                         public void run() {
                             if (mqttOk) {
                                 getTime();
-                                publishMessage("time:" + time + "加速度x:" + accelerateX_value + "\n" + "加速度y:" + accelerateY_value + "\n" + "加速度z:" + accelerateZ_value + "\n"
-                                        + "陀螺仪x:" + new BigDecimal(Float.toString(angleX_value))  + "\n" + "陀螺仪y:" + new BigDecimal(Float.toString(angleY_value)) + "\n" + "陀螺仪z:" + new BigDecimal(Float.toString(angleZ_value)) + "\n"
-                                        + "latitude:" + latitude + "\n" + "longitude:" + longitude + "\n" + "speed:" + speed + "\n");
+                                times++;
+                                if(times == 1){
+                                    payload.append("{");
+                                }
+                                payload.append("\"data"+times +"\":{\"time\":\"" + time + "\",\"加速度x\":" + accelerateX_value + ",\"加速度y\":" + accelerateY_value + ",\"加速度z\":" + accelerateZ_value
+                                        + ",\"陀螺仪x\":" + new BigDecimal(Float.toString(angleX_value)) + ",\"陀螺仪y\":" + new BigDecimal(Float.toString(angleY_value)) + ",\"陀螺仪z\":" + new BigDecimal(Float.toString(angleZ_value))
+                                        + ",\"latitude\":" + latitude + ",\"longitude\":" + longitude + ",\"speed\":" + speed + "}");
+                                if(times == 5){
+                                    times = 0;
+                                    payload.append("}");
+                                    publishMessage(payload.toString());
+                                    payload.delete(0, payload.length());
+                                }else{
+                                    payload.append(",");
+                                }
                             }
                         }
-                    }, 0, 200);
+                    }, 0, 10);
 
 
                 } else {
